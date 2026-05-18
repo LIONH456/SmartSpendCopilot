@@ -1,25 +1,22 @@
 package com.smartspend.copilot.service;
 
+import com.smartspend.copilot.client.GeminiClient;
 import com.smartspend.copilot.model.Transaction;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class AIService {
-    @Value("${gemini.api.key}")
-    private String apiKey;
 
-    // Initializes Spring's modern HTTP client used to send POST requests to Google's servers.
-    private final RestClient restClient = RestClient.create();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private GeminiClient geminiClient;
+    private final ObjectMapper objectMapper;
 
+    public AIService(GeminiClient geminiClient, ObjectMapper objectMapper){
+        this.geminiClient = geminiClient;
+        this.objectMapper = objectMapper;
+    }
     public Transaction parseTransaction(String description){
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
-
         // Structured prompt to guarantee strict JSON output matching our schema
         String requestBody = """
             {
@@ -35,12 +32,7 @@ public class AIService {
             }
             """.formatted(description.replace("\"", "\\\""));
 
-        String response = restClient.post()
-                .uri(url)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(requestBody)
-                .retrieve()
-                .body(String.class);
+        String response = geminiClient.generateContent(requestBody);
 
         try {
             // Traverse the Gemini JSON response wrapper to get the inner text block

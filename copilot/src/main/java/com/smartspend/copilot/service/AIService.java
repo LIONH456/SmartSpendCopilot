@@ -16,6 +16,7 @@ public class AIService {
         this.geminiClient = geminiClient;
         this.objectMapper = objectMapper;
     }
+
     public Transaction parseTransaction(String description){
         // Structured prompt to guarantee strict JSON output matching our schema
         String requestBody = """

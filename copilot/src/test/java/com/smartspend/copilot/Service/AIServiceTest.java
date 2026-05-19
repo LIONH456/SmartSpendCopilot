@@ -34,6 +34,7 @@ public class AIServiceTest {
 
     @Test
     void shouldParseTransactionSuccessfully(){
+        // Arrange
         String description = "Spend 15$ on pizza at Dominos";
         String fakeResponse = """
                 {
@@ -65,12 +66,17 @@ public class AIServiceTest {
 
     @Test
     void shouldThrowExceptionWhenJsonParsingFail(){
+        // Arrange
         String invalidResponse = "INVALID JSON RESPONSE";
         when(geminiClient.generateContent(anyString())).thenReturn(invalidResponse);
+
+        // Act
         RuntimeException runtimeException = assertThrows(
                 RuntimeException.class, // 预期抛出 RuntimeException
                 ()-> aiService.parseTransaction("spent 15 dollars")// lambda: 把这段代码交给 JUnit 执行
         );
+
+        // Assert
         assertEquals("Failed to parse AI response into Transaction object", runtimeException.getMessage());
         // 确认 geminiClient 的 generateContent() 真的被调用过
         // time(1): 必须刚好调用一次,只调用一次，避免多次要还bill啊，我没钱

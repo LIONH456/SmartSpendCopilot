@@ -6,10 +6,8 @@ import com.smartspend.copilot.service.ExchangeRateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import tools.jackson.databind.ObjectMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -59,6 +57,7 @@ public class ExchangeRateServiceTest {
         verify(exchangeRateClient).fetchRate("USD", "VND");
     }
 
+    // cache testing
     @Test
     void shouldUseCachedRateOnSecondCall(){
         // Arrange
@@ -76,6 +75,7 @@ public class ExchangeRateServiceTest {
         verify(exchangeRateClient, times(1)).fetchRate("USD", "VND");
     }
 
+    // exception testing
     @Test
     void shouldThrowExceptionForUnsupportedCurrencyPair(){
         // Arrange
@@ -93,6 +93,7 @@ public class ExchangeRateServiceTest {
                 illegalArgumentException.getMessage());
     }
 
+    // fallback testing
     @Test
     void shouldReturnDefaultRateWhenClientFails(){
         // Arrange
@@ -105,6 +106,4 @@ public class ExchangeRateServiceTest {
         assertEquals(25000.0, result);
         verify(exchangeRateClient).fetchRate("USD", "VND");
     }
-
-
 }

@@ -13,18 +13,26 @@ import java.util.Locale;
 @Slf4j
 @Component
 public class ExchangeRateClient {
+
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+
     @Value("${exchange.api.base-url}")
     private String baseUrl;
 
-    public ExchangeRateClient(RestClient restClient, ObjectMapper objectMapper){
+    public ExchangeRateClient(
+            RestClient restClient,
+            ObjectMapper objectMapper
+    ) {
+
         this.restClient = restClient;
         this.objectMapper = objectMapper;
     }
 
-    public double fetchRate(String base, String target){
-        try{
+    public double fetchRate(String base, String target) {
+
+        try {
+
             String url = String.format(
                     baseUrl,
                     base.toUpperCase(Locale.ROOT)
@@ -32,23 +40,37 @@ public class ExchangeRateClient {
 
             String response = restClient.get()
                     .uri(url)
-                    .accept(MediaType.APPLICATION_JSON) // client: only accept Json format
+                    .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(String.class);
 
             JsonNode rootNode = objectMapper.readTree(response);
 
-            JsonNode rate = rootNode.path("rates");
-            if(rate.has(target.toUpperCase(Locale.ROOT))){
+            JsonNode rates = rootNode.path("rates");
 
-                return rate.get(target.toUpperCase(Locale.ROOT)).asDouble();
+            if (rates.has(target.toUpperCase(Locale.ROOT))) {
+
+                return rates
+                        .get(target.toUpperCase(Locale.ROOT))
+                        .asDouble();
             }
+
+            throw new RuntimeException(
+                    "Currency not found in API response"
+            );
+
         } catch (Exception e) {
-            log.error("Failed to fetch exchange rate: ", e);
-            throw new RuntimeException("Failed to fetch exchange rate: "+ base
-                    + " -> "
-                    + target);
+
+            log.error(
+                    "Failed to fetch exchange rate: {} -> {}",
+                    base,
+                    target,
+                    e
+            );
+
+            throw new RuntimeException(
+                    "Failed to fetch exchange rate"
+            );
         }
-        return -1;
     }
 }

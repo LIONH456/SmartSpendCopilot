@@ -81,8 +81,8 @@ public class ExchangeRateService {
         }
     }
 
-    private boolean isCacheValid() {
 
+    private boolean isCacheValid() {
         return cacheTimeStamp.plus(CACHE_TTL).isAfter(Instant.now());
     }
 }

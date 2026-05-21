@@ -12,7 +12,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Sort;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -161,5 +163,99 @@ public class TransactionServiceTest {
 
         // Verify : 确认deleteById没有被调用
         verify(transactionRepository, never()).deleteById(id);
+    }
+
+    @Test
+    void shouldReturnAllTransactionsWhenNoFiltersProvided(){
+        // Arrange
+        List<Transaction> fakeTransactions = List.of(usdTransaction, vndTransaction);
+        when(transactionRepository.findAll(any(Sort.class))).thenReturn(fakeTransactions);
+
+        // Act
+        List<Transaction> transactions = transactionService.getTransactions(
+                null, null, "amount", "desc");
+
+        // Assert
+        assertEquals(2, transactions.size());
+        assertEquals(fakeTransactions, transactions);
+
+        // Verify: 看看是否被叫其他没必要的dependencies
+        verify(transactionRepository, never()).findByCategoryIgnoreCase(anyString(), any());
+        verify(transactionRepository, never())
+                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(anyString(), any(), any());
+        verify(transactionRepository, never()).findByMerchantIgnoreCase(anyString(), any());
+        // 确保findAll()被调用过
+        verify(transactionRepository).findAll(any(Sort.class));
+    }
+
+    @Test
+    void shouldReturnTransactionsByCategoryWhenCategoryProvided(){
+        // Arrange
+        when(transactionRepository.findByCategoryIgnoreCase(eq("Food"), any()))
+                .thenReturn(List.of(usdTransaction));
+
+        // Act
+        List<Transaction> transactions = transactionService.getTransactions(
+                "Food", null, "amount", "desc");
+
+        // Assert
+        assertEquals(1, transactions.size());
+        assertEquals(usdTransaction.getCategory(), transactions.getFirst().getCategory());
+
+        // Verify: 检查是否正确被调用
+        verify(transactionRepository).findByCategoryIgnoreCase(eq("Food"), any());
+
+        verify(transactionRepository, never())
+                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(anyString(), any(), any());
+        verify(transactionRepository, never()).findByMerchantIgnoreCase(anyString(), any());
+        verify(transactionRepository, never()).findAll(any(Sort.class));
+    }
+
+    @Test
+    void shouldReturnTransactionsByMerchantWhenMerchantProvided(){
+        // Arrange
+        when(transactionRepository.findByMerchantIgnoreCase(eq("Grab"), any(Sort.class)))
+                .thenReturn(List.of(vndTransaction));
+
+        // Act
+        List<Transaction> transactions = transactionService.getTransactions(
+            null, "Grab", "amount", "desc");
+
+        // Assert
+        assertEquals(1, transactions.size());
+        assertEquals(List.of(vndTransaction), transactions);
+
+        // verify
+        verify(transactionRepository).findByMerchantIgnoreCase(eq("Grab"), any());
+
+        verify(transactionRepository, never()).findByCategoryIgnoreCase(anyString(), any());
+        verify(transactionRepository, never()).findByCategoryIgnoreCaseAndMerchantIgnoreCase(anyString(), anyString(), any());
+        verify(transactionRepository, never()).findAll(any(Sort.class));
+    }
+
+    @Test
+    void shouldReturnTransactionsByCategoryAndMerchantWhenBothProvided(){
+        // Arrange
+        when(transactionRepository
+                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(eq("Food"), eq("Dominos"), any()))
+                .thenReturn(List.of(usdTransaction));
+
+        // Act
+        List<Transaction> transactions = transactionService.getTransactions(
+                "Food", "Dominos", "amount", "desc");
+
+        // Assert
+        assertEquals(1, transactions.size());
+        assertEquals(List.of(usdTransaction), transactions);
+
+        // Verify
+        verify(transactionRepository)
+                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(eq("Food"), eq("Dominos"), any());
+
+        // 确认没被调用过
+        verify(transactionRepository, never()).findAll(any(Sort.class));
+        verify(transactionRepository, never()).findByMerchantIgnoreCase(anyString(), any());
+        verify(transactionRepository, never()).findByCategoryIgnoreCase(anyString(), any());
+
     }
 }

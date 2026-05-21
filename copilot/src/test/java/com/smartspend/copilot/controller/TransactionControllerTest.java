@@ -43,12 +43,6 @@ public class TransactionControllerTest {
     ExchangeRateService exchangeRateService;
 
     @MockitoBean
-    AIService aiService;
-
-    @MockitoBean
-    TransactionRepository transactionRepository;
-
-    @MockitoBean
     TransactionService transactionService;
 
     private Transaction usdTransaction;

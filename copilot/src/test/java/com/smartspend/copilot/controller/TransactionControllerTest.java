@@ -1,23 +1,17 @@
 package com.smartspend.copilot.controller;
 
 import com.smartspend.copilot.model.Transaction;
-import com.smartspend.copilot.repository.TransactionRepository;
-import com.smartspend.copilot.service.AIService;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.mockito.ArgumentMatchers.any;
-import org.springframework.test.web.servlet.ResultMatcher;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -49,145 +43,215 @@ public class TransactionControllerTest {
     private Transaction vndTransaction;
     private String usdDescription;
     private String vndDescription;
-    private double rate;
 
     @BeforeEach
     void setUp() {
         usdDescription = "Spent 15 dollars on pizza";
         usdTransaction = new Transaction();
         usdTransaction.setAmount(15.0);
+        usdTransaction.setCurrency("USD");
+        usdTransaction.setOriginalCurrency("USD");
         usdTransaction.setCategory("Food");
         usdTransaction.setMerchant("Dominos");
 
         vndDescription = "Paid 240000VND for Grab ride to the airport";
         vndTransaction = new Transaction();
-        vndTransaction.setAmount(240000.0);
+        vndTransaction.setAmount(10.0);
+        vndTransaction.setCurrency("USD");
+        vndTransaction.setOriginalCurrency("VND");
         vndTransaction.setCategory("Transportation");
         vndTransaction.setMerchant("Grab");
     }
 
-//    @Test
-//    void shouldReturnExchangeRate() throws Exception{
-//        // Arrange
-//        when(exchangeRateService.getRate("USD", "VND")).thenReturn(26000.0);
-//
-//        // Act and Assert (andExpect)
-//        mockMvc.perform(
-//                get("/api/transactions/rate")
-//                    .param("base", "USD")
-//                    .param("target", "VND"))
-//                    .andExpect(status().isOk()) // status 200
-//                    .andExpect(jsonPath("$.base").value("USD"))
-//                    .andExpect(jsonPath("$.target").value("VND"))
-//                    .andExpect(jsonPath("$.rate").value(26000.0)//并且期待返回的 JSON 数据中，根目录下的 Rate 字段的值必须是 26000.0
-//                    );
-//    }
-//
-//    @Test
-//    void shouldReturnBadRequestForUnsupportedCurrencyPair() throws Exception{
-//        // Act and Assert
-//        mockMvc.perform(
-//                get("/api/transactions/rate")
-//                .param("base", "EUR")
-//                .param("target", "GBP"))
-//                .andExpect(status().isBadRequest()) // status code 400
-//                .andExpect(jsonPath("$.error").value("Unsupported currency pair")
-//                );
-//    }
+    @Test
+    void shouldProcessUsdTransactionSuccessfully() throws  Exception{
+        // Arrange
+        when(transactionService.processTransaction(usdDescription)).thenReturn(usdTransaction);
 
-//    @Test
-//    void shouldProcessUsdTransactionSuccessfully() throws  Exception{
-//        // Arrange: 模拟剧本（让 aiService 拦截并返回结果）
-//        // 假装 AI 已经成功解析
-//        when(aiService.parseTransaction(usdDescription)).thenReturn(usdTransaction);
-//
-//        // 假装数据库保存成功
-//        when(transactionRepository.save(any(Transaction.class))).thenReturn(usdTransaction);
-//
-//        // 模拟前端发来的 JSON
-//        // 核心技巧：用 Map.of 把描述包装起来
-//        // 假设你的前端传参格式是： { "description": "Spent 15 dollars on pizza" }
-//        Map<String, String> requestBody = Map.of("description", usdDescription);
-//
-//        // 核心工具：用 objectMapper 把 Map 转变成真正的 JSON 字符串文本 （java -> object)
-//        String jsonRequest = objectMapper.writeValueAsString(requestBody);
-//
-//        // Act and Assert
-//        mockMvc.perform(
-//                post("/api/transactions/process")  // fake HTTP request
-//                        .contentType(MediaType.APPLICATION_JSON) // 这个 request body 是 JSON
-//                        .content(jsonRequest))
-//                    .andExpect(status().isOk())
-//                    .andExpect(jsonPath("$.amount").value(15.0))
-//                    .andExpect(jsonPath("$.currency").value(usdTransaction.getCurrency()))
-//                    .andExpect(jsonPath("$.merchant").value(usdTransaction.getMerchant()))
-//                    .andExpect(jsonPath("$.category").value(usdTransaction.getCategory()))
-//                    .andExpect(jsonPath("$.originalCurrency").value(usdTransaction.getOriginalCurrency())
-//                    );
-//        // 确认没调用过exchangeRateService
-//        verify(exchangeRateService, never())
-//                .getRate(anyString(), anyString());
-//    }
-//
-//    @Test
-//    void shouldProcessVndTransactionAndConvertToUsdTransactionSuccessfully() throws  Exception{
-//        // Arrange
-//        double rate = 24000;
-//        when(exchangeRateService.getRate("USD", "VND")).thenReturn(rate);
-//        when(aiService.parseTransaction(vndDescription)).thenReturn(vndTransaction);
-//        when(transactionRepository.save(any(Transaction.class))).thenReturn(vndTransaction);
-//
-//        // 模拟前端发来的Json
-//        Map<String,String> requestBody = Map.of("description", vndDescription);
-//
-//        // 把他变成真正的Json字符串
-//        String jsonRequest = objectMapper.writeValueAsString(requestBody);
-//
-//        // Act and Assert
-//        mockMvc.perform(
-//                post("/api/transactions/process")
-//                        .contentType(MediaType.APPLICATION_JSON)
-//                        .content(jsonRequest)
-//                ).andExpect(status().isOk())
-//                .andExpect(jsonPath("$.amount").value(10.0))
-//                .andExpect(jsonPath("$.currency").value(vndTransaction.getCurrency()))
-//                .andExpect(jsonPath("$.merchant").value(vndTransaction.getMerchant()))
-//                .andExpect(jsonPath("$.category").value(vndTransaction.getCategory()))
-//                .andExpect(jsonPath("$.originalCurrency").value(vndTransaction.getOriginalCurrency()));
-//        verify(exchangeRateService).getRate("USD", "VND");
-//    }
+        // 模拟前端发来的 JSON
+        // 核心技巧：用 Map.of 把描述包装起来
+        // 假设你的前端传参格式是： { "description": "Spent 15 dollars on pizza" }
+        Map<String, String> requestBody = Map.of("description", usdDescription);
 
-//    @Test
-//    void shouldDeleteTransactionSuccessfully() throws Exception{
-//        Long id = 1L;
-//        // Arrange
-//        when(transactionRepository.existsById(id)).thenReturn(true);
-//
-//        // Act and Assert
-//        mockMvc.perform(
-//                delete(String.format("/api/transactions/%s", id)))
-//                .andExpect(status().isNoContent());
-//
-//        // deleteById: return void (no value)
-//        // verify if deleteById is called
-//        verify(transactionRepository).deleteById(id);
-//    }
-//
-//    @Test
-//    void shouldReturnNotFoundWhenTransactionDoesNotExist() throws Exception{
-//        // Arrange
-//        Long id = 1L;
-//        when(transactionRepository.existsById(id)).thenReturn(false);
-//
-//        // Act (perform the deletion) and Assert (expected to be not found)
-//        mockMvc.perform(
-//                delete(String.format("/api/transactions/%s", id)))
-//                .andExpect(status().isNotFound());
-//
-//        // 确认deleteById没有被调用
-//        verify(transactionRepository, never()).deleteById(id);
-//    }
-//
+        // 核心工具：用 objectMapper 把 Map 转变成真正的 JSON 字符串文本 （java -> object)
+        String jsonRequest = objectMapper.writeValueAsString(requestBody);
+
+        // Act and Assert
+        mockMvc.perform(
+                post("/api/transactions/process")  // fake HTTP request
+                        .contentType(MediaType.APPLICATION_JSON) // 这个 request body 是 JSON
+                        .content(jsonRequest))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.amount").value(15.0))
+                    .andExpect(jsonPath("$.currency").value(usdTransaction.getCurrency()))
+                    .andExpect(jsonPath("$.merchant").value(usdTransaction.getMerchant()))
+                    .andExpect(jsonPath("$.category").value(usdTransaction.getCategory()))
+                    .andExpect(jsonPath("$.originalCurrency").value(usdTransaction.getOriginalCurrency())
+                    );
+
+        // Verify
+        verify(transactionService).processTransaction(usdDescription);
+    }
+
+    @Test
+    void shouldProcessVndTransactionSuccessfully() throws Exception{
+        // Arrange
+        when(transactionService.processTransaction(vndDescription)).thenReturn(vndTransaction);
+
+        // 模拟前端发来的Json
+        Map<String, String> requestBody = Map.of("description", vndDescription);
+
+        // 把它转成Json格式，为了post给HTTP
+        String jsonRequest = objectMapper.writeValueAsString(requestBody);
+
+        // Act and Assert
+        mockMvc.perform(
+                post("/api/transactions/process")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(10.0))
+                .andExpect(jsonPath("$.currency").value(vndTransaction.getCurrency()))
+                .andExpect(jsonPath("$.merchant").value(vndTransaction.getMerchant()))
+                .andExpect(jsonPath("$.category").value(vndTransaction.getCategory()))
+                .andExpect(jsonPath("$.originalCurrency").value(vndTransaction.getOriginalCurrency()));
+
+        // Verify
+        verify(transactionService).processTransaction(vndDescription);
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenDescriptionIsBlank() throws Exception{
+        // Arrange
+        // 模拟前端发来请求
+        Map<String, String> requestBody = Map.of("description", "");
+        String jsonRequest = objectMapper.writeValueAsString(requestBody); // 把它转换成jsonString
+
+        // Act and Assert
+        mockMvc.perform(
+                post("/api/transactions/process")
+                    .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonRequest)
+        ).andExpect(status().isBadRequest());
+
+        // Verify: 报错了就不会去掉service layer了
+        verify(transactionService, never()).processTransaction(anyString());
+    }
+
+    // Service Throw Exception -> Bad Request
+    @Test
+    void shouldReturnBadRequestWhenTransactionServiceThrowException() throws Exception{
+        // Arrange
+        String description = "Spent 15 dollars";
+        when(transactionService.processTransaction(anyString())).thenThrow(
+                new RuntimeException("Failed to Parse Transaction"));
+
+        // 模拟前端发来的请求
+        Map<String, String> requestBody = Map.of("description", description);
+        String jsonRequest = objectMapper.writeValueAsString(requestBody);
+
+        // Act and Assert
+        mockMvc.perform(
+                post("/api/transactions/process")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonRequest))
+                .andExpect(status().is5xxServerError()); // internal Server Errors: 500
+
+        // Verify Transaction is called but failed
+         verify(transactionService).processTransaction(anyString());
+    }
+
+    @Test
+    void shouldReturnAllTransactionsSuccessfully() throws Exception{
+        // Arrange
+        List<Transaction> fakeTransactions = List.of(usdTransaction,vndTransaction);
+        when(transactionService
+                .getTransactions(isNull(), isNull(), eq("amount"), eq("desc")))
+                .thenReturn(fakeTransactions);
+
+        // Act and Assert
+        mockMvc.perform(
+                get("/api/transactions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].merchant").value("Dominos"))
+                .andExpect(jsonPath("$[1].merchant").value(vndTransaction.getMerchant()));
+
+        // Verify
+        verify(transactionService).getTransactions(isNull(), isNull(), eq("amount"), eq("desc"));
+    }
+
+    @Test
+    void shouldReturnExchangeRate() throws Exception{
+        // Arrange
+        when(exchangeRateService.getRate("USD", "VND")).thenReturn(26000.0);
+
+        // Act and Assert (andExpect)
+        mockMvc.perform(
+                get("/api/transactions/rate")
+                        .param("base", "USD")
+                        .param("target", "VND"))
+                    .andExpect(status().isOk()) // status 200
+                    .andExpect(jsonPath("$.base").value("USD"))
+                    .andExpect(jsonPath("$.target").value("VND"))
+                    .andExpect(jsonPath("$.rate").value(26000.0)//并且期待返回的 JSON 数据中，根目录下的 Rate 字段的值必须是 26000.0
+                    );
+
+        // Verify
+        verify(exchangeRateService).getRate("USD", "VND");
+    }
+
+    @Test
+    void shouldReturnBadRequestForUnsupportedCurrencyPair() throws Exception{
+        // Arrange
+        when(exchangeRateService.getRate("EUR", "GBP"))
+                .thenThrow(new IllegalArgumentException("Unsupported currency pair"));
+        // Act and Assert
+        mockMvc.perform(
+                get("/api/transactions/rate")
+                    .param("base", "EUR")
+                    .param("target", "GBP"))
+                .andExpect(status().isBadRequest()) // status code 400
+                .andExpect(jsonPath("$.error").value("Unsupported currency pair")
+                );
+
+        // Verify
+        verify(exchangeRateService).getRate("EUR", "GBP");
+    }
+
+    @Test
+    void shouldDeleteTransactionSuccessfully() throws Exception{
+        // Arrange
+        Long id = 1L;
+
+        // Act and Assert
+        mockMvc.perform(
+                delete(String.format("/api/transactions/%s", id)))
+                .andExpect(status().isNoContent());
+
+        // deleteById: return void (no value)
+        // verify if deleteById is called
+        verify(transactionService).deleteTransaction(id);
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenTransactionDoesNotExist() throws Exception{
+        // Arrange
+        Long id = 1L;
+
+        // 对于返回值是 void 的方法，Mockito 规定必须把顺序反过来，使用 doThrow().when() 语法
+        // deleteTransaction(id) 方法的返回值应该是 void
+        doThrow(new IllegalArgumentException("Transaction does not exist"))
+                .when(transactionService).deleteTransaction(id);
+
+        // Act (perform the deletion) and Assert (expected to be not found)
+        mockMvc.perform(
+                delete(String.format("/api/transactions/%s", id)))
+                .andExpect(status().isNotFound());
+
+        // 确认deleteById没有被调用
+        verify(transactionService).deleteTransaction(id);
+    }
+
 //    @Test
 //    void shouldReturnAllTransactions() throws Exception {
 //        // Arrange

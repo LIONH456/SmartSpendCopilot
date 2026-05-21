@@ -27,8 +27,13 @@ public class TransactionController {
         if (description == null || description.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
+        try{
+            return ResponseEntity.ok(transactionService.processTransaction(description));
+        }catch (RuntimeException e){
+            // 如果Service Layer crashed 就return internal Server
+            return ResponseEntity.internalServerError().build();
+        }
 
-        return ResponseEntity.ok(transactionService.processTransaction(description));
     }
 
     @DeleteMapping("/{id}")

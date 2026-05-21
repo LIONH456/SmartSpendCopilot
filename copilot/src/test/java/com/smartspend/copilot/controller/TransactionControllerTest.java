@@ -1,6 +1,8 @@
 package com.smartspend.copilot.controller;
 
-import com.smartspend.copilot.model.Transaction;
+import com.smartspend.copilot.exception.AIParsingException;
+import com.smartspend.copilot.exception.TransactionNotFoundException;
+import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -144,7 +146,7 @@ public class TransactionControllerTest {
         // Arrange
         String description = "Spent 15 dollars";
         when(transactionService.processTransaction(anyString())).thenThrow(
-                new RuntimeException("Failed to Parse Transaction"));
+                new AIParsingException("Failed to parse transaction"));
 
         // 模拟前端发来的请求
         Map<String, String> requestBody = Map.of("description", description);
@@ -240,7 +242,7 @@ public class TransactionControllerTest {
 
         // 对于返回值是 void 的方法，Mockito 规定必须把顺序反过来，使用 doThrow().when() 语法
         // deleteTransaction(id) 方法的返回值应该是 void
-        doThrow(new IllegalArgumentException("Transaction does not exist"))
+        doThrow(new TransactionNotFoundException("Transaction does not exist"))
                 .when(transactionService).deleteTransaction(id);
 
         // Act (perform the deletion) and Assert (expected to be not found)
@@ -251,22 +253,4 @@ public class TransactionControllerTest {
         // 确认deleteById没有被调用
         verify(transactionService).deleteTransaction(id);
     }
-
-//    @Test
-//    void shouldReturnAllTransactions() throws Exception {
-//        // Arrange
-//        List<Transaction> fakeTransactions = List.of(usdTransaction, vndTransaction);
-//        when(transactionRepository.findAll(any(Sort.class))).thenReturn(fakeTransactions);
-//
-//        // Act and Assert
-//        mockMvc.perform(
-//                get("/api/transactions"))
-//                .andExpect(status().isOk())
-//                .andExpect(jsonPath("$[0].amount").value(15.0))
-//        .andExpect(jsonPath("$[0].currency").value(usdTransaction.getCurrency()));
-//
-//        verify(transactionRepository, times(1)).findAll(any(Sort.class));
-//    }
-
-
 }

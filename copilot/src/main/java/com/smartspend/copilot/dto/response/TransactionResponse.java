@@ -1,22 +1,22 @@
-package com.smartspend.copilot.model;
+package com.smartspend.copilot.dto.response;
 
-import jakarta.persistence.*;
-
+import lombok.Builder;
 import lombok.Data;
 
-@Entity
 @Data
-public class Transaction {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+@Builder
+public class TransactionResponse {
     private Long id;
 
     private Double amount;
+
     private String category;
+
     private String merchant;
+
     private String currency;
+
     private String originalCurrency;
 
-    @Column(length = 500)
     private String originalDescription;
 }

@@ -1,6 +1,7 @@
 package com.smartspend.copilot.Service;
 
-import com.smartspend.copilot.model.Transaction;
+import com.smartspend.copilot.exception.TransactionNotFoundException;
+import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
 import com.smartspend.copilot.service.AIService;
 import com.smartspend.copilot.service.ExchangeRateService;
@@ -15,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -43,16 +43,17 @@ public class TransactionServiceTest {
 
     @BeforeEach
     public void setUp(){
-        usdDescription = "Spent 15 dollars on pizza";
 
         usdTransaction = new Transaction();
+        vndTransaction = new Transaction();
+
+        usdDescription = "Spent 15 dollars on pizza";
+        vndDescription = "Paid 240000 VND for Grab ride";
+
         usdTransaction.setAmount(15.0);
         usdTransaction.setCategory("Food");
         usdTransaction.setMerchant("Dominos");
 
-        vndDescription = "Paid 240000 VND for Grab ride";
-
-        vndTransaction = new Transaction();
         vndTransaction.setAmount(240000.0);
         vndTransaction.setCategory("Transport");
         vndTransaction.setMerchant("Grab");
@@ -127,7 +128,7 @@ public class TransactionServiceTest {
         );
 
         // Assert
-        assertEquals("Failed to Parse Transaction", exception.getMessage());
+        assertEquals("Failed to parse transaction", exception.getMessage());
 
         // verify
         verify(aiService).parseTransaction("Spend 15$ dollars");
@@ -153,13 +154,17 @@ public class TransactionServiceTest {
         when(transactionRepository.existsById(id)).thenReturn(false);
 
         // Act
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+//        IllegalArgumentException exception = assertThrows(
+//                IllegalArgumentException.class,
+//                () -> transactionService.deleteTransaction(id)
+//        );
+        TransactionNotFoundException exception = assertThrows(
+                TransactionNotFoundException.class,
                 () -> transactionService.deleteTransaction(id)
         );
 
         // Assert
-        assertEquals("TRANSACTION DOES NOT EXIST", exception.getMessage());
+        assertEquals("Transaction Not Found with ID: 1", exception.getMessage());
 
         // Verify : 确认deleteById没有被调用
         verify(transactionRepository, never()).deleteById(id);

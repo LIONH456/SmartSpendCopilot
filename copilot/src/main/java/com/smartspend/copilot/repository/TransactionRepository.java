@@ -1,6 +1,6 @@
 package com.smartspend.copilot.repository;
 
-import com.smartspend.copilot.model.Transaction;
+import com.smartspend.copilot.entity.Transaction;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

@@ -1,7 +1,7 @@
 package com.smartspend.copilot.service;
 
 import com.smartspend.copilot.client.GeminiClient;
-import com.smartspend.copilot.model.Transaction;
+import com.smartspend.copilot.entity.Transaction;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;

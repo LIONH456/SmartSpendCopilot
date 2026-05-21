@@ -1,6 +1,8 @@
 package com.smartspend.copilot.service;
 
-import com.smartspend.copilot.model.Transaction;
+import com.smartspend.copilot.exception.AIParsingException;
+import com.smartspend.copilot.exception.TransactionNotFoundException;
+import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
@@ -27,7 +29,7 @@ public class TransactionService {
         // 2. pass raw string to AI to get structured data
         Transaction transaction = aiService.parseTransaction(description);
         if(transaction == null){
-            throw new RuntimeException("Failed to Parse Transaction");
+            throw new AIParsingException("Failed to parse transaction");
         }
 
         transaction.setOriginalDescription(description);
@@ -49,7 +51,7 @@ public class TransactionService {
 
     public void deleteTransaction(Long id){
         if(!transactionRepository.existsById(id)){
-            throw new IllegalArgumentException("TRANSACTION DOES NOT EXIST");
+            throw new TransactionNotFoundException("Transaction Not Found with ID: " + id);
         }
         transactionRepository.deleteById(id);
     }

@@ -1,7 +1,7 @@
 package com.smartspend.copilot.Service;
 
 import com.smartspend.copilot.client.GeminiClient;
-import com.smartspend.copilot.model.Transaction;
+import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.service.AIService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

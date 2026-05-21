@@ -5,6 +5,7 @@ import com.smartspend.copilot.dto.response.TransactionResponse;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -22,12 +23,8 @@ public class TransactionController {
     private final TransactionService transactionService;
 
     @PostMapping("/process")
-    public ResponseEntity<TransactionResponse> processExpense(@RequestBody ProcessTransactionRequest request){
+    public ResponseEntity<TransactionResponse> processExpense(@Valid @RequestBody ProcessTransactionRequest request){
         String description = request.getDescription();
-
-        if (description == null || description.isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
 
         Transaction transaction = transactionService.processTransaction(description);
 

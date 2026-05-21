@@ -2,6 +2,7 @@ package com.smartspend.copilot.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
@@ -38,6 +39,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException e){
         return ResponseEntity.badRequest().body(Map.of(
                 "error", e.getMessage(),
+                "timestamp", System.currentTimeMillis()
+        ));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationException
+            (MethodArgumentNotValidException e){
+        String errorMessage = e.getBindingResult().getFieldError().getDefaultMessage();
+
+        return ResponseEntity.badRequest().body(Map.of(
+                "error", errorMessage,
                 "timestamp", System.currentTimeMillis()
         ));
     }

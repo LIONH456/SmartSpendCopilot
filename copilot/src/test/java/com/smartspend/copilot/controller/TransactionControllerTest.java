@@ -133,8 +133,9 @@ public class TransactionControllerTest {
         mockMvc.perform(
                 post("/api/transactions/process")
                     .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonRequest)
-        ).andExpect(status().isBadRequest());
+                        .content(jsonRequest))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Description cannot be blank"));
 
         // Verify: 报错了就不会去掉service layer了
         verify(transactionService, never()).processTransaction(anyString());

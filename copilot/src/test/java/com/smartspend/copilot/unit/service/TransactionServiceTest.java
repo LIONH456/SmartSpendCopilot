@@ -1,12 +1,14 @@
-package com.smartspend.copilot.Service;
+package com.smartspend.copilot.unit.service;
 
 import com.smartspend.copilot.exception.TransactionNotFoundException;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
+
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.smartspend.copilot.service.AIService;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

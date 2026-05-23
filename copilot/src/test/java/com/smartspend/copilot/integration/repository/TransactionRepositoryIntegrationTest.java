@@ -1,7 +1,8 @@
-package com.smartspend.copilot.integration;
+package com.smartspend.copilot.integration.repository;
 
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -11,10 +12,27 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DataJpaTest
+@DataJpaTest // 真的存数据库，然后rollback
 public class TransactionRepositoryIntegrationTest {
     @Autowired
     private TransactionRepository transactionRepository;
+
+    private Transaction foodTransaction;
+    private Transaction transportTransaction;
+
+    @BeforeEach
+    void setUp() {
+        foodTransaction = new Transaction();
+
+        foodTransaction.setAmount(15.0);
+        foodTransaction.setCategory("Food");
+        foodTransaction.setMerchant("Dominos");
+
+        transportTransaction = new Transaction();
+        transportTransaction.setAmount(15.0);
+        transportTransaction.setCategory("Transport");
+        transportTransaction.setMerchant("Grab");
+    }
 
     @Test
     void shouldSaveAndRetrieveTransactionSuccessfully(){
@@ -32,7 +50,6 @@ public class TransactionRepositoryIntegrationTest {
         List<Transaction> transactions = transactionRepository.findAll();
 
         // Assert
-
         // 确认数据库真的生成 primary key 了
         assertNotNull(savedTransaction.getId());
 
@@ -46,17 +63,6 @@ public class TransactionRepositoryIntegrationTest {
     @Test
     void shouldFindTransactionsByCategoryIgnoreCase(){
         // Arrange
-        Transaction foodTransaction = new Transaction();
-
-        foodTransaction.setAmount(15.0);
-        foodTransaction.setCategory("Food");
-        foodTransaction.setMerchant("Dominos");
-
-        Transaction transportTransaction = new Transaction();
-        transportTransaction.setAmount(15.0);
-        transportTransaction.setCategory("Transport");
-        transportTransaction.setMerchant("Grab");
-
         transactionRepository.save(foodTransaction);
         transactionRepository.save(transportTransaction);
 
@@ -73,18 +79,6 @@ public class TransactionRepositoryIntegrationTest {
     @Test
     void shouldFindTransactionsByMerchantIgnoreCase(){
         // Arrange
-        Transaction foodTransaction = new Transaction();
-
-        foodTransaction.setAmount(15.0);
-        foodTransaction.setCategory("Food");
-        foodTransaction.setMerchant("Dominos");
-
-        Transaction transportTransaction = new Transaction();
-
-        transportTransaction.setAmount(15.0);
-        transportTransaction.setCategory("Transport");
-        transportTransaction.setMerchant("Grab");
-
         transactionRepository.save(foodTransaction);
         transactionRepository.save(transportTransaction);
 
@@ -101,17 +95,6 @@ public class TransactionRepositoryIntegrationTest {
     @Test
     void shouldFindTransactionsByCategoryAndMerchant(){
         // Arrange
-        Transaction foodTransaction = new Transaction();
-
-        foodTransaction.setAmount(15.0);
-        foodTransaction.setCategory("Food");
-        foodTransaction.setMerchant("Dominos");
-
-        Transaction transportTransaction = new Transaction();
-        transportTransaction.setAmount(15.0);
-        transportTransaction.setCategory("Transport");
-        transportTransaction.setMerchant("Grab");
-
         transactionRepository.save(foodTransaction);
         transactionRepository.save(transportTransaction);
 

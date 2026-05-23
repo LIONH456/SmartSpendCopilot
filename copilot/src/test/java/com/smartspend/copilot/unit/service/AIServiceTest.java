@@ -1,4 +1,4 @@
-package com.smartspend.copilot.Service;
+package com.smartspend.copilot.unit.service;
 
 import com.smartspend.copilot.client.GeminiClient;
 import com.smartspend.copilot.entity.Transaction;

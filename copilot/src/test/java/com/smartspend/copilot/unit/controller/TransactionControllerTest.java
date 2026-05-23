@@ -2,9 +2,11 @@ package com.smartspend.copilot.unit.controller;
 
 import com.smartspend.copilot.controller.TransactionController;
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
+import com.smartspend.copilot.dto.response.TransactionResponse;
 import com.smartspend.copilot.exception.AIParsingException;
 import com.smartspend.copilot.exception.TransactionNotFoundException;
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.mapper.TransactionMapper;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,10 +45,15 @@ public class TransactionControllerTest {
     @MockitoBean
     TransactionService transactionService;
 
+    @MockitoBean
+    TransactionMapper transactionMapper;
+
     private Transaction usdTransaction;
     private Transaction vndTransaction;
     private String usdDescription;
     private String vndDescription;
+    private TransactionResponse usdTransactionResponse;
+    private TransactionResponse vndTransactionResponse;
 
     @BeforeEach
     void setUp() {
@@ -58,6 +65,14 @@ public class TransactionControllerTest {
         usdTransaction.setCategory("Food");
         usdTransaction.setMerchant("Dominos");
 
+        usdTransactionResponse = TransactionResponse.builder()
+                .amount(usdTransaction.getAmount())
+                .category(usdTransaction.getCategory())
+                .merchant(usdTransaction.getMerchant())
+                .currency(usdTransaction.getCurrency())
+                .originalCurrency(usdTransaction.getOriginalCurrency())
+                .build();
+
         vndDescription = "Paid 240000VND for Grab ride to the airport";
         vndTransaction = new Transaction();
         vndTransaction.setAmount(10.0);
@@ -65,12 +80,23 @@ public class TransactionControllerTest {
         vndTransaction.setOriginalCurrency("VND");
         vndTransaction.setCategory("Transportation");
         vndTransaction.setMerchant("Grab");
+
+        vndTransactionResponse = TransactionResponse.builder()
+                .amount(vndTransaction.getAmount())
+                .category(vndTransaction.getCategory())
+                .merchant(vndTransaction.getMerchant())
+                .currency(vndTransaction.getCurrency())
+                .originalCurrency(vndTransaction.getOriginalCurrency())
+                .build();
+
+
     }
 
     @Test
     void shouldProcessUsdTransactionSuccessfully() throws Exception{
         // Arrange
         when(transactionService.processTransaction(usdDescription)).thenReturn(usdTransaction);
+        when(transactionMapper.toResponse(usdTransaction)).thenReturn(usdTransactionResponse);
 
         // 模拟前端发来的 JSON
         // 核心技巧：用 Map.of 把描述包装起来
@@ -96,12 +122,14 @@ public class TransactionControllerTest {
 
         // Verify
         verify(transactionService).processTransaction(usdDescription);
+        verify(transactionMapper).toResponse(usdTransaction);
     }
 
     @Test
     void shouldProcessVndTransactionSuccessfully() throws Exception{
         // Arrange
         when(transactionService.processTransaction(vndDescription)).thenReturn(vndTransaction);
+        when(transactionMapper.toResponse(vndTransaction)).thenReturn(vndTransactionResponse);
 
         // 模拟前端发来的Json
         ProcessTransactionRequest requestBody = new ProcessTransactionRequest();
@@ -178,6 +206,9 @@ public class TransactionControllerTest {
                 .getTransactions(isNull(), isNull(), eq("amount"), eq("desc")))
                 .thenReturn(fakeTransactions);
 
+        when(transactionMapper.toResponse(usdTransaction)).thenReturn(usdTransactionResponse);
+        when(transactionMapper.toResponse(vndTransaction)).thenReturn(vndTransactionResponse);
+
         // Act and Assert
         mockMvc.perform(
                 get("/api/transactions"))
@@ -187,6 +218,8 @@ public class TransactionControllerTest {
 
         // Verify
         verify(transactionService).getTransactions(isNull(), isNull(), eq("amount"), eq("desc"));
+        verify(transactionMapper).toResponse(usdTransaction);
+        verify(transactionMapper).toResponse(vndTransaction);
     }
 
     @Test

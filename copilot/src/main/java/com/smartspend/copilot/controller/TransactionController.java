@@ -3,6 +3,7 @@ package com.smartspend.copilot.controller;
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
 import com.smartspend.copilot.dto.response.TransactionResponse;
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.mapper.TransactionMapper;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
 import jakarta.validation.Valid;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("api/transactions")
@@ -21,6 +23,7 @@ import java.util.Map;
 public class TransactionController {
     private final ExchangeRateService exchangeRateService;
     private final TransactionService transactionService;
+    private final TransactionMapper transactionMapper;
 
     @PostMapping("/process")
     public ResponseEntity<TransactionResponse> processExpense(@Valid @RequestBody ProcessTransactionRequest request){
@@ -28,15 +31,7 @@ public class TransactionController {
 
         Transaction transaction = transactionService.processTransaction(description);
 
-        TransactionResponse response = TransactionResponse.builder()
-                .id(transaction.getId())
-                .amount(transaction.getAmount())
-                .category(transaction.getCategory())
-                .merchant(transaction.getMerchant())
-                .currency(transaction.getCurrency())
-                .originalCurrency(transaction.getOriginalCurrency())
-                .originalDescription(transaction.getOriginalDescription())
-                .build();
+        TransactionResponse response = transactionMapper.toResponse(transaction);
 
 
             return ResponseEntity.ok(response);
@@ -51,20 +46,19 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Transaction>> getAllTransactions(
+    public ResponseEntity<List<TransactionResponse>> getAllTransactions(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String merchant,
             @RequestParam(required = false, defaultValue = "amount") String sort,
             @RequestParam(required = false, defaultValue = "desc") String order
     ){
-        return ResponseEntity.ok(
-                transactionService.getTransactions(
-                        category,
-                        merchant,
-                        sort,
-                        order
-                )
-        );
+        List<Transaction> transactions = transactionService.getTransactions(category, merchant, sort, order);
+
+        // stream() :把 List 变成：“可操作的数据流” 类似：transaction1, transaction2, transaction3进入 pipeline
+        // transactionMapper::toResponse: method reference = transaction -> transactionMapper.toResponse(transaction)
+        // 把 transactions 列表里的每一个原始交易数据，排队通过转换器（Mapper）变成前端需要的格式，最后打包成一个新的列表 responses
+        List<TransactionResponse> responses = transactions.stream().map(transactionMapper::toResponse).toList();
+        return ResponseEntity.ok(responses);
     }
 
     @GetMapping("/rate")

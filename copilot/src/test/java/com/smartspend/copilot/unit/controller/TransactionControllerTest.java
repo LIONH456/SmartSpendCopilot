@@ -1,6 +1,7 @@
 package com.smartspend.copilot.unit.controller;
 
 import com.smartspend.copilot.controller.TransactionController;
+import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
 import com.smartspend.copilot.exception.AIParsingException;
 import com.smartspend.copilot.exception.TransactionNotFoundException;
 import com.smartspend.copilot.entity.Transaction;
@@ -67,14 +68,15 @@ public class TransactionControllerTest {
     }
 
     @Test
-    void shouldProcessUsdTransactionSuccessfully() throws  Exception{
+    void shouldProcessUsdTransactionSuccessfully() throws Exception{
         // Arrange
         when(transactionService.processTransaction(usdDescription)).thenReturn(usdTransaction);
 
         // 模拟前端发来的 JSON
         // 核心技巧：用 Map.of 把描述包装起来
         // 假设你的前端传参格式是： { "description": "Spent 15 dollars on pizza" }
-        Map<String, String> requestBody = Map.of("description", usdDescription);
+        ProcessTransactionRequest requestBody = new ProcessTransactionRequest();
+        requestBody.setDescription(usdDescription);
 
         // 核心工具：用 objectMapper 把 Map 转变成真正的 JSON 字符串文本 （java -> object)
         String jsonRequest = objectMapper.writeValueAsString(requestBody);
@@ -102,7 +104,8 @@ public class TransactionControllerTest {
         when(transactionService.processTransaction(vndDescription)).thenReturn(vndTransaction);
 
         // 模拟前端发来的Json
-        Map<String, String> requestBody = Map.of("description", vndDescription);
+        ProcessTransactionRequest requestBody = new ProcessTransactionRequest();
+        requestBody.setDescription(vndDescription);
 
         // 把它转成Json格式，为了post给HTTP
         String jsonRequest = objectMapper.writeValueAsString(requestBody);
@@ -127,7 +130,8 @@ public class TransactionControllerTest {
     void shouldReturnBadRequestWhenDescriptionIsBlank() throws Exception{
         // Arrange
         // 模拟前端发来请求
-        Map<String, String> requestBody = Map.of("description", "");
+        ProcessTransactionRequest requestBody = new ProcessTransactionRequest();
+        requestBody.setDescription("");
         String jsonRequest = objectMapper.writeValueAsString(requestBody); // 把它转换成jsonString
 
         // Act and Assert
@@ -138,20 +142,21 @@ public class TransactionControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Description cannot be blank"));
 
-        // Verify: 报错了就不会去掉service layer了
+        // Verify: 报错了就不会去调service layer了
         verify(transactionService, never()).processTransaction(anyString());
     }
 
     // Service Throw Exception -> Bad Request
     @Test
-    void shouldReturnBadRequestWhenTransactionServiceThrowException() throws Exception{
+    void shouldReturnInternalServerWhenTransactionServiceThrowException() throws Exception{
         // Arrange
         String description = "Spent 15 dollars";
         when(transactionService.processTransaction(anyString())).thenThrow(
                 new AIParsingException("Failed to parse transaction"));
 
         // 模拟前端发来的请求
-        Map<String, String> requestBody = Map.of("description", description);
+        ProcessTransactionRequest requestBody = new ProcessTransactionRequest();
+        requestBody.setDescription(description);
         String jsonRequest = objectMapper.writeValueAsString(requestBody);
 
         // Act and Assert

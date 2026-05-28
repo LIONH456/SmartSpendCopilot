@@ -2,6 +2,7 @@ package com.smartspend.copilot.unit.controller;
 
 import com.smartspend.copilot.controller.TransactionController;
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
+import com.smartspend.copilot.dto.response.PaginatedResponse;
 import com.smartspend.copilot.dto.response.TransactionResponse;
 import com.smartspend.copilot.exception.AIParsingException;
 import com.smartspend.copilot.exception.TransactionNotFoundException;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -201,10 +204,19 @@ public class TransactionControllerTest {
     @Test
     void shouldReturnAllTransactionsSuccessfully() throws Exception{
         // Arrange
-        List<Transaction> fakeTransactions = List.of(usdTransaction,vndTransaction);
+        List<TransactionResponse> responses = List.of(usdTransactionResponse, vndTransactionResponse);
+        PaginatedResponse<TransactionResponse> paginatedResponse = PaginatedResponse.<TransactionResponse>
+                builder()
+                .content(responses)
+                .page(0)
+                .size(10)
+                .totalElements(2)
+                .totalPages(1)
+                .last(true)
+                .build();
         when(transactionService
-                .getTransactions(isNull(), isNull(), eq("amount"), eq("desc")))
-                .thenReturn(fakeTransactions);
+                .getTransactions(isNull(), isNull(), eq("amount"), eq("desc"), anyInt(), anyInt()))
+                .thenReturn(new PageImpl<>(List.of(usdTransaction, vndTransaction), PageRequest.of(0, 10), 2));
 
         when(transactionMapper.toResponse(usdTransaction)).thenReturn(usdTransactionResponse);
         when(transactionMapper.toResponse(vndTransaction)).thenReturn(vndTransactionResponse);
@@ -213,11 +225,16 @@ public class TransactionControllerTest {
         mockMvc.perform(
                 get("/api/transactions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].merchant").value("Dominos"))
-                .andExpect(jsonPath("$[1].merchant").value(vndTransaction.getMerchant()));
+                .andExpect(jsonPath("$.content[0].merchant").value("Dominos"))
+                .andExpect(jsonPath("$.content[1].merchant").value("Grab"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.last").value(true));
 
         // Verify
-        verify(transactionService).getTransactions(isNull(), isNull(), eq("amount"), eq("desc"));
+        verify(transactionService).getTransactions(isNull(), isNull(), eq("amount"), eq("desc"), anyInt(), anyInt());
         verify(transactionMapper).toResponse(usdTransaction);
         verify(transactionMapper).toResponse(vndTransaction);
     }

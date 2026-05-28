@@ -5,6 +5,9 @@ import com.smartspend.copilot.exception.TransactionNotFoundException;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
@@ -56,8 +59,8 @@ public class TransactionService {
         transactionRepository.deleteById(id);
     }
 
-    public List<Transaction> getTransactions(
-            String category, String merchant, String sort, String order
+    public Page<Transaction> getTransactions(
+            String category, String merchant, String sort, String order, int page, int size
     ){
         // 预防以后会被其他object调用过去
         sort = (sort == null || sort.isBlank()) ? "amount" : sort;
@@ -68,6 +71,7 @@ public class TransactionService {
                 ? Sort.Direction.ASC
                 : Sort.Direction.DESC;
 
+        // allowed sorting fields
         String sortField = switch (sort.toLowerCase()) {
             case "merchant"  -> "merchant";
             case "category" -> "category";
@@ -77,24 +81,27 @@ public class TransactionService {
 
         Sort sortConfig = Sort.by(direction, sortField);
 
+        // 第几页, 每页几条, 排序规则
+        Pageable pageable = PageRequest.of(page, size, sortConfig);
+
         // find by category and merchant
         if(category != null && !category.isBlank() && merchant != null && !merchant.isBlank() ){
             return transactionRepository.findByCategoryIgnoreCaseAndMerchantIgnoreCase(
-                    category.trim(), merchant.trim(), sortConfig
+                    category.trim(), merchant.trim(), pageable
             );
         }
 
         // find by category
         if(category != null &&  !category.isBlank() ){
-            return transactionRepository.findByCategoryIgnoreCase(category.trim(), sortConfig);
+            return transactionRepository.findByCategoryIgnoreCase(category.trim(), pageable);
         }
 
         // find by merchant
         if (merchant != null && !merchant.isBlank() ){
-            return transactionRepository.findByMerchantIgnoreCase(merchant.trim(), sortConfig);
+            return transactionRepository.findByMerchantIgnoreCase(merchant.trim(), pageable);
         }
 
-        return transactionRepository.findAll(sortConfig);
+        return transactionRepository.findAll(pageable);
     }
 
     private boolean containsVndCurrency(String description){

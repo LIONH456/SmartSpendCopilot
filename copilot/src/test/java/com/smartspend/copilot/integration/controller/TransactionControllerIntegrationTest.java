@@ -5,21 +5,18 @@ import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
 import com.smartspend.copilot.service.AIService;
 import com.smartspend.copilot.service.ExchangeRateService;
-import com.smartspend.copilot.service.TransactionService;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.HttpRange;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -201,9 +198,12 @@ public class TransactionControllerIntegrationTest {
         // Act and Assert
         mockMvc.perform(get("/api/transactions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].merchant").exists())
-                .andExpect(jsonPath("$[1].merchant").exists());
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].merchant").exists())
+                .andExpect(jsonPath("$.content[1].merchant").exists())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(2));
 
         // Database Verification
         assertEquals(2, transactionRepository.findAll().size());
@@ -218,8 +218,8 @@ public class TransactionControllerIntegrationTest {
         // Act and Assert
         mockMvc.perform(get("/api/transactions").param("category", "Food"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].category").value("Food"));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].category").value("Food"));
     }
 
     @Test
@@ -231,8 +231,8 @@ public class TransactionControllerIntegrationTest {
         // Act and Assert
         mockMvc.perform(get("/api/transactions").param("merchant", "Grab"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].merchant").value("Grab"));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].merchant").value("Grab"));
     }
 
     @Test
@@ -246,8 +246,8 @@ public class TransactionControllerIntegrationTest {
                 .param("category", "Food")
                 .param("merchant", "Dominos"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].category").value("Food"))
-                .andExpect(jsonPath("$[0].merchant").value("Dominos"));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].category").value("Food"))
+                .andExpect(jsonPath("$.content[0].merchant").value("Dominos"));
     }
 }

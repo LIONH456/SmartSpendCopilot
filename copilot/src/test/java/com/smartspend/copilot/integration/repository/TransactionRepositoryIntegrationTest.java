@@ -6,6 +6,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.util.List;
@@ -66,14 +69,17 @@ public class TransactionRepositoryIntegrationTest {
         transactionRepository.save(foodTransaction);
         transactionRepository.save(transportTransaction);
 
+        Pageable pageable = PageRequest.of(0, 10,
+                Sort.by(Sort.Direction.DESC, "amount"));
+
         // Act
-        List<Transaction> result = transactionRepository.findByCategoryIgnoreCase
-                ("food", Sort.by(Sort.Direction.DESC, "amount"));
+        Page<Transaction> result = transactionRepository.findByCategoryIgnoreCase
+                ("food", pageable);
 
         // Assert
-        assertEquals(1, result.size()); // 确保只查出来 1 条，把别的分类（如 Grab）挡在外面
-        assertEquals("Food", result.getFirst().getCategory()); // 确保查出来的确实是 Food 分类
-        assertEquals("Dominos", result.getFirst().getMerchant());
+        assertEquals(1, result.getContent().size()); // 确保只查出来 1 条，把别的分类（如 Grab）挡在外面
+        assertEquals("Food", result.getContent().getFirst().getCategory()); // 确保查出来的确实是 Food 分类
+        assertEquals("Dominos", result.getContent().getFirst().getMerchant());
     }
 
     @Test
@@ -82,14 +88,17 @@ public class TransactionRepositoryIntegrationTest {
         transactionRepository.save(foodTransaction);
         transactionRepository.save(transportTransaction);
 
+        Pageable pageable = PageRequest.of(0, 10,
+                Sort.by(Sort.Direction.DESC, "amount"));
+
         // Act
-        List<Transaction> results = transactionRepository.findByMerchantIgnoreCase(
-                "grab", Sort.by(Sort.Direction.DESC, "amount"));
+        Page<Transaction> results = transactionRepository.findByMerchantIgnoreCase(
+                "grab", pageable);
 
         // Assert
-        assertEquals(1, results.size()); // 确保只查出来 1 条，把别的Merchant（如 Dominos）挡在外面
-        assertEquals("Transport", results.getFirst().getCategory());
-        assertEquals("Grab", results.getFirst().getMerchant());
+        assertEquals(1, results.getContent().size()); // 确保只查出来 1 条，把别的Merchant（如 Dominos）挡在外面
+        assertEquals("Transport", results.getContent().getFirst().getCategory());
+        assertEquals("Grab", results.getContent().getFirst().getMerchant());
     }
 
     @Test
@@ -98,14 +107,35 @@ public class TransactionRepositoryIntegrationTest {
         transactionRepository.save(foodTransaction);
         transactionRepository.save(transportTransaction);
 
+        Pageable pageable = PageRequest.of(0, 10,
+                Sort.by(Sort.Direction.DESC, "amount"));
+
         // Act
-        List<Transaction> transactions = transactionRepository.findByCategoryIgnoreCaseAndMerchantIgnoreCase(
-            "food", "dominos", Sort.by(Sort.Direction.DESC, "amount")
+        Page<Transaction> transactions = transactionRepository.findByCategoryIgnoreCaseAndMerchantIgnoreCase(
+            "food", "dominos", pageable
         );
 
         // Assert
-        assertEquals(1, transactions.size());
-        assertEquals("Food", transactions.getFirst().getCategory());
-        assertEquals("Dominos", transactions.getFirst().getMerchant());
+        assertEquals(1, transactions.getContent().size());
+        assertEquals("Food", transactions.getContent().getFirst().getCategory());
+        assertEquals("Dominos", transactions.getContent().getFirst().getMerchant());
+    }
+
+    @Test
+    void shouldReturnPaginatedTransactions(){
+        // Arrange
+        transactionRepository.save(foodTransaction);
+        transactionRepository.save(transportTransaction);
+
+        Pageable pageable = PageRequest.of(0, 1);
+
+        // Act
+        Page<Transaction> page = transactionRepository.findAll(pageable);
+
+        // Assert
+        assertEquals(1, page.getContent().size());
+        assertEquals(2, page.getTotalElements());
+        assertEquals(2, page.getTotalPages());
+        assertFalse(page.isEmpty());
     }
 }

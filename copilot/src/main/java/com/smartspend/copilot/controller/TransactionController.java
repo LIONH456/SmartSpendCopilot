@@ -1,6 +1,7 @@
 package com.smartspend.copilot.controller;
 
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
+import com.smartspend.copilot.dto.response.PaginatedResponse;
 import com.smartspend.copilot.dto.response.TransactionResponse;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.mapper.TransactionMapper;
@@ -9,6 +10,7 @@ import com.smartspend.copilot.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,19 +48,32 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TransactionResponse>> getAllTransactions(
+    public ResponseEntity<PaginatedResponse<TransactionResponse>> getAllTransactions(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String merchant,
             @RequestParam(required = false, defaultValue = "amount") String sort,
-            @RequestParam(required = false, defaultValue = "desc") String order
+            @RequestParam(required = false, defaultValue = "desc") String order,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ){
-        List<Transaction> transactions = transactionService.getTransactions(category, merchant, sort, order);
+        Page<Transaction> transactionPage = transactionService.getTransactions(category, merchant, sort, order, page, size);
 
         // stream() :把 List 变成：“可操作的数据流” 类似：transaction1, transaction2, transaction3进入 pipeline
         // transactionMapper::toResponse: method reference = transaction -> transactionMapper.toResponse(transaction)
         // 把 transactions 列表里的每一个原始交易数据，排队通过转换器（Mapper）变成前端需要的格式，最后打包成一个新的列表 responses
-        List<TransactionResponse> responses = transactions.stream().map(transactionMapper::toResponse).toList();
-        return ResponseEntity.ok(responses);
+        List<TransactionResponse> responses = transactionPage.getContent().stream().map(transactionMapper::toResponse).toList();
+
+        PaginatedResponse<TransactionResponse> response =
+                PaginatedResponse.<TransactionResponse>builder()
+                        .content(responses)
+                        .page(transactionPage.getNumber())
+                        .size(transactionPage.getSize())
+                        .totalElements(transactionPage.getTotalElements())
+                        .totalPages(transactionPage.getTotalPages())
+                        .last(transactionPage.isLast())
+                        .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/rate")

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
@@ -163,12 +164,12 @@ public class TransactionServiceIntegrationTest {
         transactionRepository.save(vndTransaction);
 
         // Act
-        List<Transaction> transactions = transactionService.getTransactions(
-                null, null, "amount", "desc"
+        Page<Transaction> transactions = transactionService.getTransactions(
+                null, null, "amount", "desc", 0, 10
         );
 
         // Assert
-        assertEquals(2, transactions.size());
+        assertEquals(2, transactions.getContent().size());
     }
 
     @Test
@@ -178,13 +179,13 @@ public class TransactionServiceIntegrationTest {
         transactionRepository.save(vndTransaction);
 
         // Act
-        List<Transaction> transactions = transactionService.getTransactions(
-                "food", null, "amount", "asc"
+        Page<Transaction> transactions = transactionService.getTransactions(
+                "food", null, "amount", "asc", 0, 10
         );
 
         // Assert
-        assertEquals(1, transactions.size());
-        assertEquals("Food", transactions.getFirst().getCategory());
+        assertEquals(1, transactions.getContent().size());
+        assertEquals("Food", transactions.getContent().getFirst().getCategory());
     }
 
     @Test
@@ -194,13 +195,13 @@ public class TransactionServiceIntegrationTest {
         transactionRepository.save(vndTransaction);
 
         // Act
-        List<Transaction> transactions = transactionService.getTransactions(
-                null, "Grab", "amount", "desc"
+        Page<Transaction> transactions = transactionService.getTransactions(
+                null, "Grab", "amount", "desc", 0, 10
         );
 
         // Assert
-        assertEquals(1, transactions.size());
-        assertEquals("Grab", transactions.getFirst().getMerchant());
+        assertEquals(1, transactions.getContent().size());
+        assertEquals("Grab", transactions.getContent().getFirst().getMerchant());
     }
 
     @Test
@@ -210,13 +211,13 @@ public class TransactionServiceIntegrationTest {
         transactionRepository.save(vndTransaction);
 
         // Act
-        List<Transaction> transactions = transactionService.getTransactions(
-                "Food", "Dominos", "amount", "asc"
+        Page<Transaction> transactions = transactionService.getTransactions(
+                "Food", "Dominos", "amount", "asc", 0, 10
         );
 
         // Assert
-        assertEquals(1, transactions.size());
-        assertEquals("Food", transactions.getFirst().getCategory());
-        assertEquals("Dominos", transactions.getFirst().getMerchant());
+        assertEquals(1, transactions.getContent().size());
+        assertEquals("Food", transactions.getContent().getFirst().getCategory());
+        assertEquals("Dominos", transactions.getContent().getFirst().getMerchant());
     }
 }

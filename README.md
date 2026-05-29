@@ -1,6 +1,6 @@
 # SmartSpend AI
 
-> AI-powered expense tracking platform with natural-language transaction parsing, real-time currency conversion, and full-stack financial analytics.
+> AI-powered expense tracking platform with natural-language transaction parsing, real-time currency conversion, pagination, API documentation, and production-ready backend architecture.
 
 ---
 
@@ -20,10 +20,12 @@ The platform includes:
 
 * AI-driven expense parsing
 * Currency normalization
-* Transaction filtering & sorting
+* Pagination & filtering
+* OpenAPI / Swagger documentation
 * RESTful API architecture
 * DTO + Mapper separation
 * Global exception handling
+* Docker containerization
 * Unit & integration testing
 * Responsive frontend dashboard
 
@@ -72,6 +74,7 @@ Supports:
 * Delete transactions
 * Filter transactions
 * Sort transactions
+* Pagination
 
 Filtering:
 
@@ -84,6 +87,48 @@ Sorting:
 * Merchant
 * Category
 * ID
+
+Pagination:
+
+* Page number
+* Page size
+* Total pages
+* Total elements
+* Last page detection
+
+---
+
+## Swagger / OpenAPI Documentation
+
+Integrated Swagger UI for interactive API testing and documentation.
+
+Features:
+
+* Interactive endpoint testing
+* Request/response schemas
+* Validation documentation
+* Error response examples
+* Pagination response structure
+
+Swagger UI:
+
+```text
+http://localhost:8080/swagger-ui.html
+```
+
+---
+
+## Docker Support
+
+SmartSpend AI supports Docker containerization for portable deployment.
+
+Features:
+
+* Containerized Spring Boot backend
+* Environment variable support
+* Secure API key management
+* Docker Compose ready
+* Production deployment preparation
 
 ---
 
@@ -107,6 +152,7 @@ Additional architecture layers:
 * Mapper
 * Exception Handling
 * External API Clients
+* Pagination Response Wrapper
 
 ---
 
@@ -114,10 +160,22 @@ Additional architecture layers:
 
 * Request validation using `@Valid`
 * Global centralized exception handling
+* Standardized API error responses
 * Custom exceptions:
 
   * `TransactionNotFoundException`
   * `AIParsingException`
+
+Example Error Response:
+
+```json
+{
+  "timestamp": 1716999999999,
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Description cannot be blank"
+}
+```
 
 ---
 
@@ -155,6 +213,7 @@ Additional architecture layers:
 * Maven
 * Lombok
 * MapStruct
+* Swagger / OpenAPI
 
 ---
 
@@ -194,6 +253,9 @@ This project demonstrates understanding of:
 * Dependency Injection
 * Validation
 * Exception Handling
+* Pagination
+* API Documentation
+* Docker Containerization
 * Unit Testing
 * Integration Testing
 * API Integration
@@ -222,6 +284,16 @@ Supports:
 
 * filtering
 * sorting
+* pagination
+
+Query Parameters:
+
+```text
+?page=0
+&size=10
+&sort=amount
+&order=desc
+```
 
 ---
 
@@ -249,6 +321,36 @@ GET /api/transactions/rate
 
 ---
 
+## Transaction History
+
+![Transaction History](./screenshots/transactions.png)
+
+---
+
+## Expense Analytics
+
+![Analytics](./screenshots/analytics.png)
+
+---
+
+## Add Transaction
+
+![Add Transaction](./screenshots/add-transaction.png)
+
+---
+
+## Currency Conversion
+
+![Currency](./screenshots/currency.png)
+
+---
+
+## Mobile UI
+
+![Mobile UI](./screenshots/mobile-ui.png)
+
+---
+
 # Project Structure
 
 ## Backend
@@ -260,10 +362,16 @@ copilot/
 ├── repository/
 ├── entity/
 ├── dto/
+│   ├── request/
+│   └── response/
 ├── mapper/
 ├── exception/
 ├── client/
-└── integration/
+├── integration/
+│   ├── controller/
+│   ├── service/
+│   └── repository/
+└── config/
 ```
 
 ---
@@ -293,7 +401,17 @@ cd copilot
 
 ---
 
-## 2. Install dependencies
+## 2. Create environment variables
+
+Create a `.env` file:
+
+```env
+GEMINI_API_TOKEN=your_api_key
+```
+
+---
+
+## 3. Install dependencies
 
 ```bash
 ./mvnw clean install
@@ -301,7 +419,7 @@ cd copilot
 
 ---
 
-## 3. Run the application
+## 4. Run the application
 
 ```bash
 ./mvnw spring-boot:run
@@ -309,10 +427,28 @@ cd copilot
 
 ---
 
-## 4. Verify exchange-rate endpoint
+## 5. Open Swagger UI
+
+```text
+http://localhost:8080/swagger-ui.html
+```
+
+---
+
+# Docker Setup
+
+## Build Docker image
 
 ```bash
-curl "http://localhost:8080/api/transactions/rate?base=USD&target=VND"
+docker build -t smartspend .
+```
+
+---
+
+## Run Docker container
+
+```bash
+docker run --env-file .env -p 8080:8080 smartspend
 ```
 
 ---
@@ -350,22 +486,24 @@ flutter run
 3. Enter natural-language expense descriptions
 4. Track transactions
 5. Filter & sort transaction history
-6. Toggle between USD and VND
+6. Navigate paginated transaction pages
+7. Toggle between USD and VND
 
 ---
 
 # Future Improvements
 
-* Pagination
 * JWT Authentication
 * Spring Security
 * Role-based Authorization
-* Docker Deployment
 * Redis Caching
 * CI/CD Pipeline
 * Analytics Dashboard
 * Budget Tracking
 * Multi-Currency Support
+* Docker Compose Deployment
+* Cloud Database Hosting
+* Kubernetes Deployment
 
 ---
 
@@ -374,6 +512,7 @@ flutter run
 * Exchange rates are cached server-side to reduce API calls.
 * Fallback exchange-rate logic ensures system stability if external providers fail.
 * Architecture is intentionally designed for future scalability and production upgrades.
+* Pagination is implemented server-side for scalability and database efficiency.
 
 ---
 
@@ -387,6 +526,9 @@ Building SmartSpend AI strengthened my understanding of:
 * Hibernate & ORM concepts
 * Database interaction
 * Validation & exception handling
+* Pagination architecture
+* Swagger/OpenAPI documentation
+* Docker containerization
 * Unit & integration testing
 * Full-stack application architecture
 * Clean backend engineering practices

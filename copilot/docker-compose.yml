@@ -1,0 +1,32 @@
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: smartspend-mysql
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+
+    ports:
+      - "3307:3306"
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+
+  backend:
+    build: .
+    container_name: smartspend-backend
+
+    ports:
+      - "8080:8080"
+
+    env_file:
+      - .env
+
+    depends_on:
+      - mysql
+
+volumes:
+  mysql-data:

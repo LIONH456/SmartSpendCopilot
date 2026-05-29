@@ -171,7 +171,7 @@ public class TransactionControllerTest {
                     .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Description cannot be blank"));
+                .andExpect(jsonPath("$.message").value("Description cannot be blank"));
 
         // Verify: 报错了就不会去调service layer了
         verify(transactionService, never()).processTransaction(anyString());
@@ -195,7 +195,8 @@ public class TransactionControllerTest {
                 post("/api/transactions/process")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
-                .andExpect(status().is5xxServerError()); // internal Server Errors: 500
+                .andExpect(status().is5xxServerError())
+                .andExpect(jsonPath("$.message").value("Failed to parse transaction")); // internal Server Errors: 500
 
         // Verify Transaction is called but failed
          verify(transactionService).processTransaction(anyString());
@@ -270,7 +271,7 @@ public class TransactionControllerTest {
                     .param("base", "EUR")
                     .param("target", "GBP"))
                 .andExpect(status().isBadRequest()) // status code 400
-                .andExpect(jsonPath("$.error").value("Unsupported currency pair")
+                .andExpect(jsonPath("$.message").value("Unsupported currency pair")
                 );
 
         // Verify

@@ -1,17 +1,25 @@
 package com.smartspend.copilot.controller;
 
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
+import com.smartspend.copilot.dto.response.ApiErrorResponse;
 import com.smartspend.copilot.dto.response.PaginatedResponse;
 import com.smartspend.copilot.dto.response.TransactionResponse;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.mapper.TransactionMapper;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,11 +30,23 @@ import java.util.stream.Collectors;
 @RequestMapping("api/transactions")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name="Transaction API", description = "APIs for managing SmartSpend transactions")
 public class TransactionController {
     private final ExchangeRateService exchangeRateService;
     private final TransactionService transactionService;
     private final TransactionMapper transactionMapper;
 
+    @Operation(
+            summary = "Process a transaction",
+            description = "Convert raw transaction text into structured transaction data"
+    )
+    @ApiResponses({ // 告诉 Swagger：这个 endpoint 可能返回哪些 response
+            @ApiResponse(responseCode = "200", description = "Transaction processed successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request body or validation failed",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))), // content/schema： 错误 JSON 长什么样
+            @ApiResponse(responseCode = "500", description = "AI parsing failed",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))), // content/schema： 错误 JSON 长什么样
+    })
     @PostMapping("/process")
     public ResponseEntity<TransactionResponse> processExpense(@Valid @RequestBody ProcessTransactionRequest request){
         String description = request.getDescription();
@@ -36,9 +56,19 @@ public class TransactionController {
         TransactionResponse response = transactionMapper.toResponse(transaction);
 
 
-            return ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
+
+    @Operation(
+            summary = "Delete transaction",
+            description = "Delete a transaction by id"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Transaction deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Transaction not found",
+            content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+    })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTransaction(@PathVariable Long id){
             transactionService.deleteTransaction(id);
@@ -47,6 +77,13 @@ public class TransactionController {
 
     }
 
+    @Operation(
+            summary = "Get paginated transactions",
+            description = "Retrieve transactions with optional filtering, sorting, and pagination"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Transactions retrieve successfully")
+    })
     @GetMapping
     public ResponseEntity<PaginatedResponse<TransactionResponse>> getAllTransactions(
             @RequestParam(required = false) String category,
@@ -76,6 +113,15 @@ public class TransactionController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Get exchange rate",
+            description = "Retrieve currency exchange rate between 2 currencies"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Exchange rate retrieved successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid currency code",
+            content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+    })
     @GetMapping("/rate")
     public ResponseEntity<Map<String, Object>> getExchangeRate(
             @RequestParam(required = false, defaultValue = "USD") String base,

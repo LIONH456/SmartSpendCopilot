@@ -34,9 +34,9 @@ public class ExchangeRateClient {
         try {
 
             String url = String.format(
-                    baseUrl,
-                    base.toUpperCase(Locale.ROOT)
+                    baseUrl + base.toUpperCase(Locale.ROOT)
             );
+//            log.info("url: " + url);
 
             String response = restClient.get()
                     .uri(url)
@@ -60,6 +60,7 @@ public class ExchangeRateClient {
             );
 
         } catch (Exception e) {
+
 
             log.error(
                     "Failed to fetch exchange rate: {} -> {}",

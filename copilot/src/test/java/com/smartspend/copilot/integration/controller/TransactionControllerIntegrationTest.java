@@ -141,7 +141,8 @@ public class TransactionControllerIntegrationTest {
         mockMvc.perform(post("/api/transactions/process")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Description cannot be blank"));
 
         // Database Verification
         List<Transaction> databaseTransactions = transactionRepository.findAll();
@@ -163,7 +164,8 @@ public class TransactionControllerIntegrationTest {
                 post("/api/transactions/process")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("Failed to parse transaction"));
 
         // Database Verification
         assertTrue(transactionRepository.findAll().isEmpty());

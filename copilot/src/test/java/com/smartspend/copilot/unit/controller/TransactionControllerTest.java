@@ -4,8 +4,8 @@ import com.smartspend.copilot.controller.TransactionController;
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
 import com.smartspend.copilot.dto.response.PaginatedResponse;
 import com.smartspend.copilot.dto.response.TransactionResponse;
-import com.smartspend.copilot.exception.AIParsingException;
-import com.smartspend.copilot.exception.TransactionNotFoundException;
+import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ErrorCode;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.mapper.TransactionMapper;
 import com.smartspend.copilot.service.ExchangeRateService;
@@ -171,7 +171,8 @@ public class TransactionControllerTest {
                     .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Description cannot be blank"));
+                .andExpect(jsonPath("$.code").value(ErrorCode.DESCRIPTION_BLANK.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.DESCRIPTION_BLANK.getMessage()));
 
         // Verify: 报错了就不会去调service layer了
         verify(transactionService, never()).processTransaction(anyString());
@@ -183,7 +184,7 @@ public class TransactionControllerTest {
         // Arrange
         String description = "Spent 15 dollars";
         when(transactionService.processTransaction(anyString())).thenThrow(
-                new AIParsingException("Failed to parse transaction"));
+                new AppException(ErrorCode.AI_PARSING_FAILED));
 
         // 模拟前端发来的请求
         ProcessTransactionRequest requestBody = new ProcessTransactionRequest();
@@ -196,6 +197,7 @@ public class TransactionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
                 .andExpect(status().is5xxServerError())
+                .andExpect(jsonPath("$.code").value(ErrorCode.AI_PARSING_FAILED.getCode()))
                 .andExpect(jsonPath("$.message").value("Failed to parse transaction")); // internal Server Errors: 500
 
         // Verify Transaction is called but failed
@@ -264,14 +266,15 @@ public class TransactionControllerTest {
     void shouldReturnBadRequestForUnsupportedCurrencyPair() throws Exception{
         // Arrange
         when(exchangeRateService.getRate("EUR", "GBP"))
-                .thenThrow(new IllegalArgumentException("Unsupported currency pair"));
+                .thenThrow(new AppException(ErrorCode.UNSUPPORTED_CURRENCY_PAIR));
         // Act and Assert
         mockMvc.perform(
                 get("/api/transactions/rate")
                     .param("base", "EUR")
                     .param("target", "GBP"))
                 .andExpect(status().isBadRequest()) // status code 400
-                .andExpect(jsonPath("$.message").value("Unsupported currency pair")
+                .andExpect(jsonPath("$.code").value(ErrorCode.UNSUPPORTED_CURRENCY_PAIR.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.UNSUPPORTED_CURRENCY_PAIR.getMessage())
                 );
 
         // Verify
@@ -300,13 +303,15 @@ public class TransactionControllerTest {
 
         // 对于返回值是 void 的方法，Mockito 规定必须把顺序反过来，使用 doThrow().when() 语法
         // deleteTransaction(id) 方法的返回值应该是 void
-        doThrow(new TransactionNotFoundException("Transaction does not exist"))
+        doThrow(new AppException(ErrorCode.TRANSACTION_NOT_FOUND))
                 .when(transactionService).deleteTransaction(id);
 
         // Act (perform the deletion) and Assert (expected to be not found)
         mockMvc.perform(
                 delete(String.format("/api/transactions/%s", id)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(ErrorCode.TRANSACTION_NOT_FOUND.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.TRANSACTION_NOT_FOUND.getMessage()));
 
         // 确认deleteById没有被调用
         verify(transactionService).deleteTransaction(id);

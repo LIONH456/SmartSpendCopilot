@@ -1,6 +1,6 @@
 package com.smartspend.copilot.unit.service;
 
-import com.smartspend.copilot.exception.TransactionNotFoundException;
+import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
 
@@ -113,8 +113,8 @@ public class TransactionServiceTest {
         String description = "";
 
         // Act
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        AppException exception = assertThrows(
+                AppException.class,
                 () -> transactionService.processTransaction(description));
 
         // Assert
@@ -127,8 +127,8 @@ public class TransactionServiceTest {
         when(aiService.parseTransaction(anyString())).thenReturn(null);
 
         // Act
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
+        AppException exception = assertThrows(
+                AppException.class,
                 () -> transactionService.processTransaction("Spend 15$ dollars")
         );
 
@@ -163,8 +163,8 @@ public class TransactionServiceTest {
 //                IllegalArgumentException.class,
 //                () -> transactionService.deleteTransaction(id)
 //        );
-        TransactionNotFoundException exception = assertThrows(
-                TransactionNotFoundException.class,
+        AppException exception = assertThrows(
+                AppException.class,
                 () -> transactionService.deleteTransaction(id)
         );
 

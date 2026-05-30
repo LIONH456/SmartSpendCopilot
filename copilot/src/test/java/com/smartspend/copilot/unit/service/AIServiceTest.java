@@ -2,6 +2,7 @@ package com.smartspend.copilot.unit.service;
 
 import com.smartspend.copilot.client.GeminiClient;
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.service.AIService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,13 +71,13 @@ public class AIServiceTest {
         when(geminiClient.generateContent(anyString())).thenReturn(invalidResponse);
 
         // Act
-        RuntimeException runtimeException = assertThrows(
-                RuntimeException.class, // 预期抛出 RuntimeException
+        AppException runtimeException = assertThrows(
+                AppException.class, // 预期抛出 RuntimeException
                 ()-> aiService.parseTransaction("spent 15 dollars")// lambda: 把这段代码交给 JUnit 执行
         );
 
         // Assert
-        assertEquals("Failed to parse AI response into Transaction object", runtimeException.getMessage());
+        assertEquals("AI returned invalid response", runtimeException.getMessage());
         // 确认 geminiClient 的 generateContent() 真的被调用过
         // time(1): 必须刚好调用一次,只调用一次，避免多次要还bill啊，我没钱
         verify(geminiClient, times(1)).generateContent(anyString());

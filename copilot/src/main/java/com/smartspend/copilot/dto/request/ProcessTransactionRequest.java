@@ -12,6 +12,6 @@ public class ProcessTransactionRequest {
             description = "Raw transaction description entered by user",
             example = "spent 15$ on pizza at Dominos"
     )
-    @NotBlank(message = "Description cannot be blank")
+    @NotBlank(message = "DESCRIPTION_BLANK")
     private String description;
 }

@@ -2,6 +2,7 @@ package com.smartspend.copilot.unit.service;
 
 
 import com.smartspend.copilot.client.ExchangeRateClient;
+import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.service.ExchangeRateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,8 +84,8 @@ public class ExchangeRateServiceTest {
         String target = "GBP";
 
         // Act
-        IllegalArgumentException illegalArgumentException = assertThrows(
-                IllegalArgumentException.class,
+        AppException illegalArgumentException = assertThrows(
+                AppException.class,
                 () -> exchangeRateService.getRate(base, target)
         );
 

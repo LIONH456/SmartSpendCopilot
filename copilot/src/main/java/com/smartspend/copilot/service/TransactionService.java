@@ -1,7 +1,7 @@
 package com.smartspend.copilot.service;
 
-import com.smartspend.copilot.exception.AIParsingException;
-import com.smartspend.copilot.exception.TransactionNotFoundException;
+import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ErrorCode;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ public class TransactionService {
     public Transaction processTransaction(String description){
 
         if(description == null || description.isBlank()){
-            throw new IllegalArgumentException("Description cannot be blank");
+            throw new AppException(ErrorCode.DESCRIPTION_BLANK);
         }
         // 1. determine whether the text was given in VND
         boolean isVnd = containsVndCurrency(description);
@@ -32,7 +32,7 @@ public class TransactionService {
         // 2. pass raw string to AI to get structured data
         Transaction transaction = aiService.parseTransaction(description);
         if(transaction == null){
-            throw new AIParsingException("Failed to parse transaction");
+            throw new AppException(ErrorCode.AI_PARSING_FAILED);
         }
 
         transaction.setOriginalDescription(description);
@@ -54,7 +54,7 @@ public class TransactionService {
 
     public void deleteTransaction(Long id){
         if(!transactionRepository.existsById(id)){
-            throw new TransactionNotFoundException("Transaction Not Found with ID: " + id);
+            throw new AppException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction Not Found with ID: " + id);
         }
         transactionRepository.deleteById(id);
     }

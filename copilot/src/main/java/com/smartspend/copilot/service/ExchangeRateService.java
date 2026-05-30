@@ -1,6 +1,8 @@
 package com.smartspend.copilot.service;
 
 import com.smartspend.copilot.client.ExchangeRateClient;
+import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -72,11 +74,9 @@ public class ExchangeRateService {
 
         if (!supported) {
 
-            throw new IllegalArgumentException(
-                    "Unsupported currency pair: "
-                            + base
-                            + " -> "
-                            + target
+            throw new AppException(
+                    ErrorCode.UNSUPPORTED_CURRENCY_PAIR,
+                    "Unsupported currency pair: " + base + " -> " + target
             );
         }
     }

@@ -1,7 +1,7 @@
 package com.smartspend.copilot.integration.service;
 
 import com.smartspend.copilot.entity.Transaction;
-import com.smartspend.copilot.exception.TransactionNotFoundException;
+import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.repository.TransactionRepository;
 import com.smartspend.copilot.service.AIService;
 import com.smartspend.copilot.service.ExchangeRateService;
@@ -116,8 +116,8 @@ public class TransactionServiceIntegrationTest {
     @Test
     void shouldThrowExceptionWhenDescriptionIsBlank(){
         // Act and Assert
-        IllegalArgumentException exception =
-                assertThrows(IllegalArgumentException.class, () ->
+        AppException exception =
+                assertThrows(AppException.class, () ->
                 {transactionService.processTransaction("");});
 
         assertEquals("Description cannot be blank", exception.getMessage());
@@ -153,7 +153,7 @@ public class TransactionServiceIntegrationTest {
     void shouldThrowExceptionWhenDeletingNonExistingTransaction(){
         Long id = 999L;
         // Act and Assert
-        TransactionNotFoundException exception = assertThrows(TransactionNotFoundException.class,
+        AppException exception = assertThrows(AppException.class,
                         () -> transactionService.deleteTransaction(id));
 
         assertEquals("Transaction Not Found with ID: " + id, exception.getMessage());

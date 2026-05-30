@@ -2,6 +2,7 @@ package com.smartspend.copilot.integration.controller;
 
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.exception.ErrorCode;
 import com.smartspend.copilot.repository.TransactionRepository;
 import com.smartspend.copilot.service.AIService;
 import com.smartspend.copilot.service.ExchangeRateService;
@@ -144,7 +145,8 @@ public class TransactionControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Description cannot be blank"));
+                .andExpect(jsonPath("$.code").value(ErrorCode.DESCRIPTION_BLANK.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.DESCRIPTION_BLANK.getMessage()));
 
         // Database Verification
         List<Transaction> databaseTransactions = transactionRepository.findAll();
@@ -167,7 +169,8 @@ public class TransactionControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.message").value("Failed to parse transaction"));
+                .andExpect(jsonPath("$.code").value(ErrorCode.AI_PARSING_FAILED.getCode()))
+                .andExpect(jsonPath("$.message").value(ErrorCode.AI_PARSING_FAILED.getMessage()));
 
         // Database Verification
         assertTrue(transactionRepository.findAll().isEmpty());
@@ -190,7 +193,8 @@ public class TransactionControllerIntegrationTest {
     void shouldReturnNotFoundWhenTransactionDoesNotExist() throws Exception {
         // Act and Assert
         mockMvc.perform(delete("/api/transactions/" + 1))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(ErrorCode.TRANSACTION_NOT_FOUND.getCode()));
     }
 
     @Test

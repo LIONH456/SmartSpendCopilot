@@ -2,6 +2,8 @@ package com.smartspend.copilot.service;
 
 import com.smartspend.copilot.client.GeminiClient;
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ErrorCode;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -45,7 +47,7 @@ public class AIService {
                     .path("text").asText();
             return objectMapper.readValue(aiGeneratedJson, Transaction.class);
         }catch (Exception e){
-            throw new RuntimeException("Failed to parse AI response into Transaction object", e);
+            throw new AppException(ErrorCode.AI_RESPONSE_INVALID);
         }
     }
 }

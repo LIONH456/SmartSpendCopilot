@@ -1,5 +1,7 @@
 package com.smartspend.copilot.client;
 
+import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -55,9 +57,7 @@ public class ExchangeRateClient {
                         .asDouble();
             }
 
-            throw new RuntimeException(
-                    "Currency not found in API response"
-            );
+            throw new AppException(ErrorCode.UNSUPPORTED_CURRENCY_PAIR);
 
         } catch (Exception e) {
 

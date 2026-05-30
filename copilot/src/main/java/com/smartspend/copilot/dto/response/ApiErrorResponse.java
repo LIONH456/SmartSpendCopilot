@@ -16,6 +16,8 @@ public class ApiErrorResponse {
     LocalDateTime timestamp; // 错误发生时间。
     @Schema(description = "HTTP status code", example = "400")
     int status; // HTTP Status Code
+    @Schema(description = "The unique internal business error code identifying the specific failure reason", example = "1001")
+    int code;
     @Schema(description = "HTTP Status name", example = "Bad Request")
     String error; // HTTP 状态名字：Bad Request, Not Found, Internal Server Error
     @Schema(description = "Specific reasons for business errors", example = "Description cannot be blank")

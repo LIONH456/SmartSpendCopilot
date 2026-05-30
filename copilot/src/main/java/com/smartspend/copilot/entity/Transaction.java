@@ -2,21 +2,32 @@ package com.smartspend.copilot.entity;
 
 import jakarta.persistence.*;
 
-import lombok.Data;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
 
 @Entity
-@Data
+@Table(name="transactions")
+@FieldDefaults(level = AccessLevel.PRIVATE)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Transaction {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
-    private Double amount;
-    private String category;
-    private String merchant;
-    private String currency;
-    private String originalCurrency;
+    Double amount;
+    String category;
+    String merchant;
+    String currency;
+    String originalCurrency;
 
     @Column(length = 500)
-    private String originalDescription;
+    String originalDescription;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name="user_id")
+    User user;
 }

@@ -25,6 +25,9 @@ services:
     env_file:
       - .env
 
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
     depends_on:
       - mysql
 

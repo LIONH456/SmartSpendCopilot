@@ -10,12 +10,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest // 真的存数据库，然后rollback
+@ActiveProfiles("test")
 public class TransactionRepositoryIntegrationTest {
     @Autowired
     private TransactionRepository transactionRepository;

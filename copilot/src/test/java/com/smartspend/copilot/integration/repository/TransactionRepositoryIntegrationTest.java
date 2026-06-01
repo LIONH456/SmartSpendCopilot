@@ -1,7 +1,9 @@
 package com.smartspend.copilot.integration.repository;
 
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.entity.User;
 import com.smartspend.copilot.repository.TransactionRepository;
+import com.smartspend.copilot.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,21 +24,33 @@ public class TransactionRepositoryIntegrationTest {
     @Autowired
     private TransactionRepository transactionRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private User fakeUser;
     private Transaction foodTransaction;
     private Transaction transportTransaction;
 
     @BeforeEach
     void setUp() {
+        fakeUser = new User();
+        fakeUser.setUsername("fakeUser");
+        fakeUser.setEmail("fakeUser@gmail.com");
+        fakeUser.setPassword("password");
+        fakeUser = userRepository.save(fakeUser);
+
         foodTransaction = new Transaction();
 
         foodTransaction.setAmount(15.0);
         foodTransaction.setCategory("Food");
         foodTransaction.setMerchant("Dominos");
+        foodTransaction.setUser(fakeUser);
 
         transportTransaction = new Transaction();
         transportTransaction.setAmount(15.0);
         transportTransaction.setCategory("Transport");
         transportTransaction.setMerchant("Grab");
+        transportTransaction.setUser(fakeUser);
     }
 
     @Test
@@ -49,20 +63,25 @@ public class TransactionRepositoryIntegrationTest {
         transaction.setCurrency("USD");
         transaction.setOriginalCurrency("USD");
         transaction.setOriginalDescription("Spent 15 dollars for pizza at Dominos");
+        transaction.setUser(fakeUser);
+
+        Pageable pageable = PageRequest.of(0, 10,
+                Sort.by(Sort.Direction.DESC, "amount"));
 
         // Act
         Transaction savedTransaction = transactionRepository.save(transaction);
-        List<Transaction> transactions = transactionRepository.findAll();
+        Page<Transaction> transactions = transactionRepository.findByUser(fakeUser, pageable);
 
         // Assert
         // 确认数据库真的生成 primary key 了
         assertNotNull(savedTransaction.getId());
 
         // 确认真的 insert 成功了
-        assertEquals(1, transactions.size());
+        assertEquals(1, transactions.getContent().size());
 
         // 确认retrieve 出来的数据正确
-        assertEquals("Dominos", transactions.get(0).getMerchant());
+        assertEquals("Dominos", transactions.getContent().getFirst().getMerchant());
+        assertEquals(fakeUser.getId(), transactions.getContent().getFirst().getUser().getId());
     }
 
     @Test
@@ -75,13 +94,14 @@ public class TransactionRepositoryIntegrationTest {
                 Sort.by(Sort.Direction.DESC, "amount"));
 
         // Act
-        Page<Transaction> result = transactionRepository.findByCategoryIgnoreCase
-                ("food", pageable);
+        Page<Transaction> result = transactionRepository.findByUserAndCategoryIgnoreCase
+                (fakeUser,"food", pageable);
 
         // Assert
         assertEquals(1, result.getContent().size()); // 确保只查出来 1 条，把别的分类（如 Grab）挡在外面
         assertEquals("Food", result.getContent().getFirst().getCategory()); // 确保查出来的确实是 Food 分类
         assertEquals("Dominos", result.getContent().getFirst().getMerchant());
+        assertEquals(fakeUser.getId(), result.getContent().getFirst().getUser().getId());
     }
 
     @Test
@@ -94,13 +114,14 @@ public class TransactionRepositoryIntegrationTest {
                 Sort.by(Sort.Direction.DESC, "amount"));
 
         // Act
-        Page<Transaction> results = transactionRepository.findByMerchantIgnoreCase(
-                "grab", pageable);
+        Page<Transaction> results = transactionRepository.findByUserAndMerchantIgnoreCase(
+                fakeUser, "grab", pageable);
 
         // Assert
         assertEquals(1, results.getContent().size()); // 确保只查出来 1 条，把别的Merchant（如 Dominos）挡在外面
         assertEquals("Transport", results.getContent().getFirst().getCategory());
         assertEquals("Grab", results.getContent().getFirst().getMerchant());
+        assertEquals(fakeUser.getId(), results.getContent().getFirst().getUser().getId());
     }
 
     @Test
@@ -113,14 +134,15 @@ public class TransactionRepositoryIntegrationTest {
                 Sort.by(Sort.Direction.DESC, "amount"));
 
         // Act
-        Page<Transaction> transactions = transactionRepository.findByCategoryIgnoreCaseAndMerchantIgnoreCase(
-            "food", "dominos", pageable
+        Page<Transaction> transactions = transactionRepository.findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(
+            fakeUser, "food", "dominos", pageable
         );
 
         // Assert
         assertEquals(1, transactions.getContent().size());
         assertEquals("Food", transactions.getContent().getFirst().getCategory());
         assertEquals("Dominos", transactions.getContent().getFirst().getMerchant());
+        assertEquals(fakeUser.getId(), transactions.getContent().getFirst().getUser().getId());
     }
 
     @Test
@@ -132,7 +154,7 @@ public class TransactionRepositoryIntegrationTest {
         Pageable pageable = PageRequest.of(0, 1);
 
         // Act
-        Page<Transaction> page = transactionRepository.findAll(pageable);
+        Page<Transaction> page = transactionRepository.findByUser(fakeUser, pageable);
 
         // Assert
         assertEquals(1, page.getContent().size());

@@ -13,6 +13,7 @@ public enum ErrorCode {
     USERNAME_ALREADY_EXISTS(1001, "Username already exists", HttpStatus.BAD_REQUEST),
     EMAIL_ALREADY_EXISTS(1002, "Email already exists", HttpStatus.BAD_REQUEST),
     USER_NOT_FOUND(1003, "User not found", HttpStatus.NOT_FOUND),
+    INVALID_CREDENTIALS(1004, "Incorrect username or password", HttpStatus.UNAUTHORIZED),
     TRANSACTION_NOT_FOUND(2001, "Transaction not found", HttpStatus.NOT_FOUND),
     UNSUPPORTED_CURRENCY_PAIR(3001, "Unsupported currency pair", HttpStatus.BAD_REQUEST),
     EXCHANGE_RATE_UNAVALIABLE(3002, "Exchange rate service unavailable", HttpStatus.SERVICE_UNAVAILABLE),

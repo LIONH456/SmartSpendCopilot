@@ -1,12 +1,15 @@
 package com.smartspend.copilot.unit.service;
 
+import com.smartspend.copilot.entity.User;
 import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.exception.ErrorCode;
 import com.smartspend.copilot.repository.TransactionRepository;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.smartspend.copilot.service.AIService;
+import com.smartspend.copilot.service.CurrentUserService;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -37,6 +41,9 @@ public class TransactionServiceTest {
     @Mock
     private TransactionRepository transactionRepository;
 
+    @Mock
+    private CurrentUserService currentUserService;
+
     @InjectMocks
     private TransactionService transactionService;
 
@@ -45,9 +52,15 @@ public class TransactionServiceTest {
 
     private String usdDescription;
     private String vndDescription;
+    private User fakeUser;
 
     @BeforeEach
     public void setUp(){
+
+        fakeUser = new User();
+        fakeUser.setUsername("fakeUser");
+        fakeUser.setPassword("fakePassword");
+        fakeUser.setEmail("fakeEmail");
 
         usdTransaction = new Transaction();
         vndTransaction = new Transaction();
@@ -68,6 +81,7 @@ public class TransactionServiceTest {
     void shouldProcessUsdTransactionSuccessfully(){
         // Arrange
         when(aiService.parseTransaction(usdDescription)).thenReturn(usdTransaction);
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         when(transactionRepository.save(any(Transaction.class))).thenReturn(usdTransaction);
 
         // Act
@@ -91,6 +105,7 @@ public class TransactionServiceTest {
         double rate = 24000.0;
         when(exchangeRateService.getRate("USD", "VND")).thenReturn(rate);
         when(aiService.parseTransaction(vndDescription)).thenReturn(vndTransaction);
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         when(transactionRepository.save(any(Transaction.class))).thenReturn(vndTransaction);
 
         // Act
@@ -143,20 +158,22 @@ public class TransactionServiceTest {
     void shouldDeleteTransactionWhenTransactionExists(){
         // Arrange
         Long id = 1L;
-        when(transactionRepository.existsById(id)).thenReturn(true);
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
+        when(transactionRepository.findByIdAndUser(id, fakeUser)).thenReturn(Optional.of(usdTransaction));
 
         // Act
         transactionService.deleteTransaction(id);
 
         // Assert and Verify
-        verify(transactionRepository).deleteById(id);
+        verify(transactionRepository).delete(usdTransaction);
     }
 
     @Test
     void shouldThrowExceptionWhenDeletingNonExistingTransaction(){
         // Arrange
         Long id = 1L;
-        when(transactionRepository.existsById(id)).thenReturn(false);
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
+        when(transactionRepository.findByIdAndUser(id, fakeUser)).thenReturn(Optional.empty());
 
         // Act
 //        IllegalArgumentException exception = assertThrows(
@@ -169,10 +186,10 @@ public class TransactionServiceTest {
         );
 
         // Assert
-        assertEquals("Transaction Not Found with ID: 1", exception.getMessage());
+        assertEquals(ErrorCode.TRANSACTION_NOT_FOUND.getMessage(), exception.getMessage());
 
-        // Verify : 确认deleteById没有被调用
-        verify(transactionRepository, never()).deleteById(id);
+        // Verify : 确认delete没有被调用
+        verify(transactionRepository, never()).delete(any());
     }
 
     @Test
@@ -181,7 +198,8 @@ public class TransactionServiceTest {
         List<Transaction> fakeTransactions = List.of(usdTransaction, vndTransaction);
         Page<Transaction> transactionPage = new PageImpl<>(fakeTransactions);
 
-        when(transactionRepository.findAll(any(Pageable.class))).thenReturn(transactionPage);
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
+        when(transactionRepository.findByUser(eq(fakeUser), any(Pageable.class))).thenReturn(transactionPage);
 
         // Act
         Page<Transaction> transactions = transactionService.getTransactions(
@@ -192,13 +210,13 @@ public class TransactionServiceTest {
         assertEquals(fakeTransactions, transactions.getContent());
 
         // Verify: 看看是否被叫其他没必要的dependencies
-        verify(transactionRepository, never()).findByCategoryIgnoreCase(anyString(), any());
+        verify(transactionRepository, never()).findByUserAndCategoryIgnoreCase(eq(fakeUser), anyString(), any());
         verify(transactionRepository, never())
-                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(anyString(), anyString(), any());
-        verify(transactionRepository, never()).findByMerchantIgnoreCase(anyString(), any());
+                .findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(eq(fakeUser), anyString(), anyString(), any());
+        verify(transactionRepository, never()).findByUserAndMerchantIgnoreCase(eq(fakeUser), anyString(), any());
 
         // 确保findAll()被调用过
-        verify(transactionRepository).findAll(any(Pageable.class));
+        verify(transactionRepository).findByUser(eq(fakeUser), any(Pageable.class));
     }
 
     @Test
@@ -207,7 +225,8 @@ public class TransactionServiceTest {
         List<Transaction> fakeTransactions = List.of(usdTransaction);
         Page<Transaction> transactionPage = new PageImpl<>(fakeTransactions);
 
-        when(transactionRepository.findByCategoryIgnoreCase(eq("Food"), any()))
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
+        when(transactionRepository.findByUserAndCategoryIgnoreCase(eq(fakeUser), eq("Food"), any()))
                 .thenReturn(transactionPage);
 
         // Act
@@ -219,19 +238,21 @@ public class TransactionServiceTest {
         assertEquals(usdTransaction.getCategory(), transactions.getContent().getFirst().getCategory());
 
         // Verify: 检查是否正确被调用
-        verify(transactionRepository).findByCategoryIgnoreCase(eq("Food"), any());
+        verify(transactionRepository).findByUserAndCategoryIgnoreCase(eq(fakeUser), eq("Food"), any());
 
         verify(transactionRepository, never())
-                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(anyString(), any(), any());
-        verify(transactionRepository, never()).findByMerchantIgnoreCase(anyString(), any());
-        verify(transactionRepository, never()).findAll(any(Pageable.class));
+                .findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(eq(fakeUser), anyString(), any(), any());
+        verify(transactionRepository, never()).findByUserAndMerchantIgnoreCase(eq(fakeUser), anyString(), any());
+        verify(transactionRepository, never()).findByUser(eq(fakeUser), any(Pageable.class));
     }
 
     @Test
     void shouldReturnTransactionsByMerchantWhenMerchantProvided(){
         // Arrange
         Page<Transaction> transactionPage = new PageImpl<>(List.of(vndTransaction));
-        when(transactionRepository.findByMerchantIgnoreCase(eq("Grab"), any(Pageable.class)))
+
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
+        when(transactionRepository.findByUserAndMerchantIgnoreCase(eq(fakeUser), eq("Grab"), any(Pageable.class)))
                 .thenReturn(transactionPage);
 
         // Act
@@ -243,19 +264,20 @@ public class TransactionServiceTest {
         assertEquals(List.of(vndTransaction), transactions.getContent());
 
         // verify
-        verify(transactionRepository).findByMerchantIgnoreCase(eq("Grab"), any());
+        verify(transactionRepository).findByUserAndMerchantIgnoreCase(eq(fakeUser), eq("Grab"), any());
 
-        verify(transactionRepository, never()).findByCategoryIgnoreCase(anyString(), any());
-        verify(transactionRepository, never()).findByCategoryIgnoreCaseAndMerchantIgnoreCase(anyString(), anyString(), any());
-        verify(transactionRepository, never()).findAll(any(Pageable.class));
+        verify(transactionRepository, never()).findByUserAndCategoryIgnoreCase(eq(fakeUser), anyString(), any());
+        verify(transactionRepository, never()).findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(eq(fakeUser), anyString(), anyString(), any());
+        verify(transactionRepository, never()).findByUser(eq(fakeUser), any(Pageable.class));
     }
 
     @Test
     void shouldReturnTransactionsByCategoryAndMerchantWhenBothProvided(){
         // Arrange
         Page <Transaction> transactionPage = new PageImpl<>(List.of(usdTransaction));
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         when(transactionRepository
-                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(eq("Food"), eq("Dominos"), any()))
+                .findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(eq(fakeUser), eq("Food"), eq("Dominos"), any()))
                 .thenReturn(transactionPage);
 
         // Act
@@ -268,12 +290,12 @@ public class TransactionServiceTest {
 
         // Verify
         verify(transactionRepository)
-                .findByCategoryIgnoreCaseAndMerchantIgnoreCase(eq("Food"), eq("Dominos"), any());
+                .findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(eq(fakeUser), eq("Food"), eq("Dominos"), any());
 
         // 确认没被调用过
-        verify(transactionRepository, never()).findAll(any(Pageable.class));
-        verify(transactionRepository, never()).findByMerchantIgnoreCase(anyString(), any());
-        verify(transactionRepository, never()).findByCategoryIgnoreCase(anyString(), any());
+        verify(transactionRepository, never()).findByUser(eq(fakeUser), any(Pageable.class));
+        verify(transactionRepository, never()).findByUserAndMerchantIgnoreCase(eq(fakeUser), anyString(), any());
+        verify(transactionRepository, never()).findByUserAndCategoryIgnoreCase(eq(fakeUser), anyString(), any());
 
     }
 }

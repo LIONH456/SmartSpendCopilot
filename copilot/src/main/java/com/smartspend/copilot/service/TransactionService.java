@@ -1,10 +1,13 @@
 package com.smartspend.copilot.service;
 
+import com.smartspend.copilot.entity.User;
 import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.exception.ErrorCode;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.repository.TransactionRepository;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -16,10 +19,12 @@ import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class TransactionService {
-    private final AIService aiService;
-    private final ExchangeRateService exchangeRateService;
-    private final TransactionRepository transactionRepository;
+    AIService aiService;
+    ExchangeRateService exchangeRateService;
+    TransactionRepository transactionRepository;
+    CurrentUserService currentUserService;
 
     public Transaction processTransaction(String description){
 
@@ -48,15 +53,19 @@ public class TransactionService {
             transaction.setCurrency("USD");
         }
 
+        // get current user
+        User currentUser = currentUserService.getCurrentUser();
+        transaction.setUser(currentUser);
+
         // 4. save to database
         return transactionRepository.save(transaction);
     }
 
     public void deleteTransaction(Long id){
-        if(!transactionRepository.existsById(id)){
-            throw new AppException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction Not Found with ID: " + id);
-        }
-        transactionRepository.deleteById(id);
+        User currentUser = currentUserService.getCurrentUser();
+        Transaction transaction = transactionRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() ->new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+        transactionRepository.delete(transaction);
     }
 
     public Page<Transaction> getTransactions(
@@ -84,24 +93,27 @@ public class TransactionService {
         // 第几页, 每页几条, 排序规则
         Pageable pageable = PageRequest.of(page, size, sortConfig);
 
+        // 找current User
+        User currentUser = currentUserService.getCurrentUser();
+
         // find by category and merchant
         if(category != null && !category.isBlank() && merchant != null && !merchant.isBlank() ){
-            return transactionRepository.findByCategoryIgnoreCaseAndMerchantIgnoreCase(
-                    category.trim(), merchant.trim(), pageable
+            return transactionRepository.findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(
+                    currentUser, category.trim(), merchant.trim(), pageable
             );
         }
 
         // find by category
         if(category != null &&  !category.isBlank() ){
-            return transactionRepository.findByCategoryIgnoreCase(category.trim(), pageable);
+            return transactionRepository.findByUserAndCategoryIgnoreCase(currentUser, category.trim(), pageable);
         }
 
         // find by merchant
         if (merchant != null && !merchant.isBlank() ){
-            return transactionRepository.findByMerchantIgnoreCase(merchant.trim(), pageable);
+            return transactionRepository.findByUserAndMerchantIgnoreCase(currentUser, merchant.trim(), pageable);
         }
 
-        return transactionRepository.findAll(pageable);
+        return transactionRepository.findByUser(currentUser, pageable);
     }
 
     private boolean containsVndCurrency(String description){

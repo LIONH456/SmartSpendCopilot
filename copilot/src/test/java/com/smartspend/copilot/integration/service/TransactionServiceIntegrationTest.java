@@ -7,6 +7,8 @@ import com.smartspend.copilot.service.AIService;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
 import jakarta.transaction.Transactional;
+import lombok.AccessLevel;
+import lombok.experimental.FieldDefaults;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,24 +27,25 @@ import static org.mockito.Mockito.when;
 @SpringBootTest // 启动整个 SpringBoot application
 @ActiveProfiles("test")
 @Transactional // 每个 test 独立，每个 test 跑完自动 rollback database
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class TransactionServiceIntegrationTest {
     @Autowired
-    private TransactionRepository transactionRepository;
+    TransactionRepository transactionRepository;
 
     @Autowired
-    private TransactionService transactionService;
+    TransactionService transactionService;
 
     @MockitoBean
-    private AIService aiService;
+    AIService aiService;
 
     @MockitoBean
-    private ExchangeRateService exchangeRateService;
+    ExchangeRateService exchangeRateService;
 
-    private String usdDescription;
-    private String vndDescription;
+    String usdDescription;
+    String vndDescription;
 
-    private Transaction usdTransaction;
-    private Transaction vndTransaction;
+    Transaction usdTransaction;
+    Transaction vndTransaction;
 
     @BeforeEach
     public void setUp(){

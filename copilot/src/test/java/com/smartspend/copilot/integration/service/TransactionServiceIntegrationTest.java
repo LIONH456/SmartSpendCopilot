@@ -1,9 +1,13 @@
 package com.smartspend.copilot.integration.service;
 
 import com.smartspend.copilot.entity.Transaction;
+import com.smartspend.copilot.entity.User;
 import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ErrorCode;
 import com.smartspend.copilot.repository.TransactionRepository;
+import com.smartspend.copilot.repository.UserRepository;
 import com.smartspend.copilot.service.AIService;
+import com.smartspend.copilot.service.CurrentUserService;
 import com.smartspend.copilot.service.ExchangeRateService;
 import com.smartspend.copilot.service.TransactionService;
 import jakarta.transaction.Transactional;
@@ -41,20 +45,34 @@ public class TransactionServiceIntegrationTest {
     @MockitoBean
     ExchangeRateService exchangeRateService;
 
+    @MockitoBean
+    CurrentUserService currentUserService;
+
+    User fakeUser;
+
     String usdDescription;
     String vndDescription;
 
     Transaction usdTransaction;
     Transaction vndTransaction;
+    @Autowired
+    private UserRepository userRepository;
 
     @BeforeEach
     public void setUp(){
+        fakeUser = new User();
+        fakeUser.setUsername("fakeUser");
+        fakeUser.setEmail("fake@gmail.com");
+        fakeUser.setPassword("password");
+        fakeUser = userRepository.save(fakeUser);
+
         usdDescription = "spent 15$ for pizza at Dominos";
 
         usdTransaction = new Transaction();
         usdTransaction.setAmount(15.0);
         usdTransaction.setCategory("Food");
         usdTransaction.setMerchant("Dominos");
+        usdTransaction.setUser(fakeUser);
 
         vndDescription = "Paid 240K dong for Grab ride";
 
@@ -62,14 +80,17 @@ public class TransactionServiceIntegrationTest {
         vndTransaction.setAmount(240000.0);
         vndTransaction.setCategory("Transport");
         vndTransaction.setMerchant("Grab");
+        vndTransaction.setUser(fakeUser);
     }
 
     @Test
     void shouldProcessAndSaveUsdTransactionSuccessfully(){
         // Arrange
         when(aiService.parseTransaction(usdDescription)).thenReturn(usdTransaction);
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
 
         // Act
+
         Transaction savedTransaction = transactionService.processTransaction(usdDescription);
 
         // Assert
@@ -87,6 +108,7 @@ public class TransactionServiceIntegrationTest {
 
         // 确认 persistence 正确
         assertEquals("Dominos", databaseTransactions.getFirst().getMerchant());
+        assertEquals(fakeUser.getUsername(), databaseTransactions.getFirst().getUser().getUsername());
     }
 
     @Test
@@ -94,6 +116,7 @@ public class TransactionServiceIntegrationTest {
         // Arrange
         when(aiService.parseTransaction(vndDescription)).thenReturn(vndTransaction);
         when(exchangeRateService.getRate("USD", "VND")).thenReturn(24000.0);
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
 
         // Act
         Transaction savedTransaction = transactionService.processTransaction(vndDescription);
@@ -113,6 +136,7 @@ public class TransactionServiceIntegrationTest {
 
         assertEquals(1, databaseTransactions.size());
         assertEquals("Grab", databaseTransactions.getFirst().getMerchant());
+        assertEquals(fakeUser.getUsername(), databaseTransactions.getFirst().getUser().getUsername());
     }
 
     // check description is null or blank
@@ -141,6 +165,7 @@ public class TransactionServiceIntegrationTest {
     @Test
     void shouldDeleteTransactionSuccessfully(){
         // Arrange
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         Transaction savedTransaction = transactionRepository.save(usdTransaction);
 
         // Act
@@ -159,12 +184,16 @@ public class TransactionServiceIntegrationTest {
         AppException exception = assertThrows(AppException.class,
                         () -> transactionService.deleteTransaction(id));
 
-        assertEquals("Transaction Not Found with ID: " + id, exception.getMessage());
+        assertEquals(
+                ErrorCode.TRANSACTION_NOT_FOUND.getMessage(),
+                exception.getMessage()
+        );
     }
 
     @Test
     void shouldReturnAllTransactionsWhenNoFiltersProvided(){
         // Arrange
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         transactionRepository.save(usdTransaction);
         transactionRepository.save(vndTransaction);
 
@@ -180,6 +209,7 @@ public class TransactionServiceIntegrationTest {
     @Test
     void shouldReturnTransactionByCategoryWhenCategoryProvided(){
         // Arrange
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         transactionRepository.save(usdTransaction);
         transactionRepository.save(vndTransaction);
 
@@ -196,6 +226,7 @@ public class TransactionServiceIntegrationTest {
     @Test
     void shouldReturnTransactionByMerchantWhenMerchantProvided(){
         // Arrange
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         transactionRepository.save(usdTransaction);
         transactionRepository.save(vndTransaction);
 
@@ -212,6 +243,7 @@ public class TransactionServiceIntegrationTest {
     @Test
     void shouldReturnTransactionsByCategoryAndMerchantWhenCategoryAndMerchantProvided() {
         // Arrange
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
         transactionRepository.save(usdTransaction);
         transactionRepository.save(vndTransaction);
 
@@ -224,5 +256,30 @@ public class TransactionServiceIntegrationTest {
         assertEquals(1, transactions.getContent().size());
         assertEquals("Food", transactions.getContent().getFirst().getCategory());
         assertEquals("Dominos", transactions.getContent().getFirst().getMerchant());
+    }
+
+    @Test
+    void shouldOnlyReturnCurrentUserTransactions(){
+        // Arrange
+        User fakeUser2 = new User();
+        fakeUser2.setUsername("iAmfake");
+        fakeUser2.setEmail("iAmfake@gmail.com");
+        fakeUser2.setPassword("1234");
+
+        when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
+        vndTransaction.setUser(fakeUser);
+
+        transactionRepository.save(usdTransaction);
+        transactionRepository.save(vndTransaction);
+
+        // Act
+        Page<Transaction> transaction = transactionService.getTransactions
+                ("Food", "Dominos", "amount", "asc", 0, 10);
+
+        // Assert
+        assertEquals(1, transaction.getContent().size());
+        assertEquals("Food", transaction.getContent().getFirst().getCategory());
+        assertEquals(fakeUser.getUsername(), transaction.getContent().getFirst().getUser().getUsername());
+
     }
 }

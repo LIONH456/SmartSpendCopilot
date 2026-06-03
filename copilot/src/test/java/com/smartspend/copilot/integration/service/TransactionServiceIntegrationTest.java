@@ -265,16 +265,17 @@ public class TransactionServiceIntegrationTest {
         fakeUser2.setUsername("iAmfake");
         fakeUser2.setEmail("iAmfake@gmail.com");
         fakeUser2.setPassword("1234");
+        userRepository.save(fakeUser2);
 
         when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
-        vndTransaction.setUser(fakeUser);
+        vndTransaction.setUser(fakeUser2);
 
         transactionRepository.save(usdTransaction);
         transactionRepository.save(vndTransaction);
 
         // Act
         Page<Transaction> transaction = transactionService.getTransactions
-                ("Food", "Dominos", "amount", "asc", 0, 10);
+                (null, null, "amount", "asc", 0, 10);
 
         // Assert
         assertEquals(1, transaction.getContent().size());

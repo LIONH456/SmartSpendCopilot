@@ -1,5 +1,6 @@
 package com.smartspend.copilot.dto.response;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,6 +8,11 @@ import lombok.Setter;
 @Getter
 @Setter
 @Builder
+@Schema(description = "Response DTO for successful login, contains JWT token")
 public class AuthResponse {
+    @Schema(
+            description = "JWT authentication token to be used in subsequent requests",
+            example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    )
     private String token;
 }

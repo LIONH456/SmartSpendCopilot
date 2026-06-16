@@ -21,6 +21,14 @@ public enum ErrorCode {
     AI_RESPONSE_INVALID(4002, "AI returned invalid response", HttpStatus.INTERNAL_SERVER_ERROR),
     VALIDATION_ERROR(5001, "Validation failed", HttpStatus.BAD_REQUEST),
     DESCRIPTION_BLANK(5002, "Description cannot be blank", HttpStatus.BAD_REQUEST),
+    INVALID_EMAIL(5003, "Invalid email", HttpStatus.BAD_REQUEST),
+    USERNAME_BLANK(5004, "Username cannot be blank", HttpStatus.BAD_REQUEST),
+    USERNAME_INVALID_LENGTH(5005, "Username must be between 3 and 20 characters", HttpStatus.BAD_REQUEST),
+    EMAIL_BLANK(5006, "Email cannot be blank", HttpStatus.BAD_REQUEST),
+    PASSWORD_BLANK(5007, "Password cannot be blank", HttpStatus.BAD_REQUEST),
+    PASSWORD_INVALID(5008, "Password must be at least 8 characters with uppercase, lowercase, digit, and special character", HttpStatus.BAD_REQUEST),
+    TOKEN_EXPIRED(6001, "Token has expired", HttpStatus.UNAUTHORIZED),
+    INVALID_TOKEN(6002, "Invalid token", HttpStatus.UNAUTHORIZED),
     INTERNAL_SERVER_ERROR(9001, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR);
 
     int code;

@@ -1,6 +1,10 @@
 package com.smartspend.copilot.service;
 
+import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.AccessLevel;
@@ -55,8 +59,14 @@ public class JwtService {
 
     // 验证通行证真伪与效期（验证 Token）
     public boolean isTokenValid(String token, UserDetails userDetails){
-        String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        try {
+            String username = extractUsername(token);
+            return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        } catch (ExpiredJwtException e) {
+            throw new AppException(ErrorCode.TOKEN_EXPIRED);
+        } catch (JwtException e) {
+            throw new AppException(ErrorCode.INVALID_TOKEN);
+        }
     }
 
     // 辅助功能：检查令牌是否寿终正寝
@@ -68,11 +78,17 @@ public class JwtService {
     // 上面的“提取用户名”和“检查是否过期”想要数据，都必须首先调用它来拆包。
     // 安全精髓：verifyWith 保证了安全性。只要黑客不知道你在 .env 里写的那个密钥，他就绝对不可能伪造出能通过这一步的 Token。
     private Claims extractClaims(String token){
-        return Jwts.parser()
-                .verifyWith(getSigningKey())    // 1. 拿着你唯一的钢印去比对防伪。如果黑客篡改过Token，这一步直接抛异常崩掉！
-                .build()
-                .parseSignedClaims(token)       // 2. 验伪通过，放心地撕开信封
-                .getPayload();        // 3. 拿出里面包含 sub, iat, exp 等字段的 JSON 数据块（Claims）
+        try {
+            return Jwts.parser()
+                    .verifyWith(getSigningKey())    // 1. 拿着你唯一的钢印去比对防伪。如果黑客篡改过Token，这一步直接抛异常崩掉！
+                    .build()
+                    .parseSignedClaims(token)       // 2. 验伪通过，放心地撕开信封
+                    .getPayload();        // 3. 拿出里面包含 sub, iat, exp 等字段的 JSON 数据块（Claims）
+        } catch (ExpiredJwtException e) {
+            throw new AppException(ErrorCode.TOKEN_EXPIRED);
+        } catch (JwtException e) {
+            throw new AppException(ErrorCode.INVALID_TOKEN);
+        }
     }
 
 }

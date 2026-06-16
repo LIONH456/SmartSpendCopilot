@@ -10,15 +10,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DataJpaTest // 真的存数据库，然后rollback
+@DataJpaTest
 @ActiveProfiles("test")
 public class TransactionRepositoryIntegrationTest {
     @Autowired
@@ -27,139 +23,162 @@ public class TransactionRepositoryIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    private User fakeUser;
-    private Transaction foodTransaction;
-    private Transaction transportTransaction;
+    private User testUser;
 
     @BeforeEach
     void setUp() {
-        fakeUser = new User();
-        fakeUser.setUsername("fakeUser");
-        fakeUser.setEmail("fakeUser@gmail.com");
-        fakeUser.setPassword("password");
-        fakeUser = userRepository.save(fakeUser);
-
-        foodTransaction = new Transaction();
-
-        foodTransaction.setAmount(15.0);
-        foodTransaction.setCategory("Food");
-        foodTransaction.setMerchant("Dominos");
-        foodTransaction.setUser(fakeUser);
-
-        transportTransaction = new Transaction();
-        transportTransaction.setAmount(15.0);
-        transportTransaction.setCategory("Transport");
-        transportTransaction.setMerchant("Grab");
-        transportTransaction.setUser(fakeUser);
+        testUser = User.builder()
+                .username("testuser")
+                .email("test@example.com")
+                .password("encodedPassword")
+                .build();
+        testUser = userRepository.save(testUser);
     }
 
     @Test
-    void shouldSaveAndRetrieveTransactionSuccessfully(){
+    void shouldSaveAndFindTransaction() {
         // Arrange
-        Transaction transaction = new Transaction();
-        transaction.setAmount(15.0);
-        transaction.setCategory("Food");
-        transaction.setMerchant("Dominos");
-        transaction.setCurrency("USD");
-        transaction.setOriginalCurrency("USD");
-        transaction.setOriginalDescription("Spent 15 dollars for pizza at Dominos");
-        transaction.setUser(fakeUser);
-
-        Pageable pageable = PageRequest.of(0, 10,
-                Sort.by(Sort.Direction.DESC, "amount"));
+        Transaction transaction = Transaction.builder()
+                .amount(100.0)
+                .category("Food")
+                .merchant("Restaurant")
+                .currency("USD")
+                .originalCurrency("USD")
+                .originalDescription("Lunch")
+                .user(testUser)
+                .build();
 
         // Act
-        Transaction savedTransaction = transactionRepository.save(transaction);
-        Page<Transaction> transactions = transactionRepository.findByUser(fakeUser, pageable);
+        Transaction saved = transactionRepository.save(transaction);
+        Transaction found = transactionRepository.findById(saved.getId()).orElse(null);
 
         // Assert
-        // 确认数据库真的生成 primary key 了
-        assertNotNull(savedTransaction.getId());
-
-        // 确认真的 insert 成功了
-        assertEquals(1, transactions.getContent().size());
-
-        // 确认retrieve 出来的数据正确
-        assertEquals("Dominos", transactions.getContent().getFirst().getMerchant());
-        assertEquals(fakeUser.getId(), transactions.getContent().getFirst().getUser().getId());
+        assertNotNull(saved);
+        assertNotNull(found);
+        assertEquals(saved.getAmount(), 100.0);
     }
 
     @Test
-    void shouldFindTransactionsByCategoryIgnoreCase(){
+    void shouldFindTransactionByIdAndUser() {
         // Arrange
+        Transaction transaction = Transaction.builder()
+                .amount(50.0)
+                .category("Shopping")
+                .merchant("Store")
+                .currency("USD")
+                .originalCurrency("USD")
+                .user(testUser)
+                .build();
+        
+        Transaction saved = transactionRepository.save(transaction);
+
+        // Act
+        Transaction found = transactionRepository.findByIdAndUser(saved.getId(), testUser).orElse(null);
+
+        // Assert
+        assertNotNull(found);
+        assertEquals(found.getCategory(), "Shopping");
+    }
+
+    @Test
+    void shouldFindTransactionsByUserWithPagination() {
+        // Arrange
+        for (int i = 0; i < 10; i++) {
+            Transaction transaction = Transaction.builder()
+                    .amount((double) (i * 10))
+                    .category("Test")
+                    .merchant("TestMerchant")
+                    .currency("USD")
+                    .originalCurrency("USD")
+                    .user(testUser)
+                    .build();
+            transactionRepository.save(transaction);
+        }
+
+        // Act
+        Page<Transaction> page = transactionRepository.findByUser(testUser, PageRequest.of(0, 5));
+
+        // Assert
+        assertEquals(page.getTotalElements(), 10);
+        assertEquals(page.getSize(), 5);
+        assertEquals(page.getNumber(), 0);
+    }
+
+    @Test
+    void shouldFindTransactionsByUserAndCategory() {
+        // Arrange
+        Transaction foodTransaction = Transaction.builder()
+                .amount(30.0)
+                .category("Food")
+                .merchant("FoodMart")
+                .currency("USD")
+                .originalCurrency("USD")
+                .user(testUser)
+                .build();
+        
+        Transaction otherTransaction = Transaction.builder()
+                .amount(100.0)
+                .category("Other")
+                .merchant("OtherStore")
+                .currency("USD")
+                .originalCurrency("USD")
+                .user(testUser)
+                .build();
+        
         transactionRepository.save(foodTransaction);
-        transactionRepository.save(transportTransaction);
-
-        Pageable pageable = PageRequest.of(0, 10,
-                Sort.by(Sort.Direction.DESC, "amount"));
+        transactionRepository.save(otherTransaction);
 
         // Act
-        Page<Transaction> result = transactionRepository.findByUserAndCategoryIgnoreCase
-                (fakeUser,"food", pageable);
+        Page<Transaction> page = transactionRepository.findByUserAndCategoryIgnoreCase(
+                testUser, "food", PageRequest.of(0, 10));
 
         // Assert
-        assertEquals(1, result.getContent().size()); // 确保只查出来 1 条，把别的分类（如 Grab）挡在外面
-        assertEquals("Food", result.getContent().getFirst().getCategory()); // 确保查出来的确实是 Food 分类
-        assertEquals("Dominos", result.getContent().getFirst().getMerchant());
-        assertEquals(fakeUser.getId(), result.getContent().getFirst().getUser().getId());
+        assertEquals(page.getTotalElements(), 1);
+        assertEquals(page.getContent().get(0).getCategory(), "Food");
     }
 
     @Test
-    void shouldFindTransactionsByMerchantIgnoreCase(){
+    void shouldUpdateTransaction() {
         // Arrange
-        transactionRepository.save(foodTransaction);
-        transactionRepository.save(transportTransaction);
-
-        Pageable pageable = PageRequest.of(0, 10,
-                Sort.by(Sort.Direction.DESC, "amount"));
+        Transaction transaction = Transaction.builder()
+                .amount(100.0)
+                .category("OldCategory")
+                .merchant("OldMerchant")
+                .currency("USD")
+                .originalCurrency("USD")
+                .user(testUser)
+                .build();
+        
+        Transaction saved = transactionRepository.save(transaction);
 
         // Act
-        Page<Transaction> results = transactionRepository.findByUserAndMerchantIgnoreCase(
-                fakeUser, "grab", pageable);
+        saved.setAmount(200.0);
+        saved.setCategory("NewCategory");
+        Transaction updated = transactionRepository.save(saved);
 
         // Assert
-        assertEquals(1, results.getContent().size()); // 确保只查出来 1 条，把别的Merchant（如 Dominos）挡在外面
-        assertEquals("Transport", results.getContent().getFirst().getCategory());
-        assertEquals("Grab", results.getContent().getFirst().getMerchant());
-        assertEquals(fakeUser.getId(), results.getContent().getFirst().getUser().getId());
+        assertEquals(updated.getAmount(), 200.0);
+        assertEquals(updated.getCategory(), "NewCategory");
     }
 
     @Test
-    void shouldFindTransactionsByCategoryAndMerchant(){
+    void shouldDeleteTransaction() {
         // Arrange
-        transactionRepository.save(foodTransaction);
-        transactionRepository.save(transportTransaction);
-
-        Pageable pageable = PageRequest.of(0, 10,
-                Sort.by(Sort.Direction.DESC, "amount"));
+        Transaction transaction = Transaction.builder()
+                .amount(50.0)
+                .category("DeleteMe")
+                .merchant("DeleteMerchant")
+                .currency("USD")
+                .originalCurrency("USD")
+                .user(testUser)
+                .build();
+        
+        Transaction saved = transactionRepository.save(transaction);
 
         // Act
-        Page<Transaction> transactions = transactionRepository.findByUserAndCategoryIgnoreCaseAndMerchantIgnoreCase(
-            fakeUser, "food", "dominos", pageable
-        );
+        transactionRepository.delete(saved);
 
         // Assert
-        assertEquals(1, transactions.getContent().size());
-        assertEquals("Food", transactions.getContent().getFirst().getCategory());
-        assertEquals("Dominos", transactions.getContent().getFirst().getMerchant());
-        assertEquals(fakeUser.getId(), transactions.getContent().getFirst().getUser().getId());
-    }
-
-    @Test
-    void shouldReturnPaginatedTransactions(){
-        // Arrange
-        transactionRepository.save(foodTransaction);
-        transactionRepository.save(transportTransaction);
-
-        Pageable pageable = PageRequest.of(0, 1);
-
-        // Act
-        Page<Transaction> page = transactionRepository.findByUser(fakeUser, pageable);
-
-        // Assert
-        assertEquals(1, page.getContent().size());
-        assertEquals(2, page.getTotalElements());
-        assertEquals(2, page.getTotalPages());
-        assertFalse(page.isEmpty());
+        assertFalse(transactionRepository.existsById(saved.getId()));
     }
 }

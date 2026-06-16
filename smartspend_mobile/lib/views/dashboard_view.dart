@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../core/services/auth_service.dart';
 import '../view_models/expense_view_model.dart';
+import '../features/auth/presentation/login_page.dart';
 
 class DashboardView extends StatefulWidget {
-  // Declares a variable to hold the logic layer for managing expenses. 
-  // It's marked final because this reference shouldn't change once the widget is drawn.
   final ExpenseViewModel viewModel;
 
   const DashboardView({super.key, required this.viewModel});
@@ -152,6 +153,27 @@ class _DashboardViewState extends State<DashboardView> {
           TextButton(
             onPressed: widget.viewModel.isLoading ? null : () => widget.viewModel.toggleCurrency(),
             child: Text(widget.viewModel.displayCurrency, style: const TextStyle(color: Colors.white70)),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.white70),
+            color: const Color(0xFF161925),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                final authService = Provider.of<AuthService>(context, listen: false);
+                await authService.logout();
+                if (mounted) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
+                }
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'logout',
+                child: Text('Logout'),
+              ),
+            ],
           ),
         ],
       ),

@@ -99,7 +99,6 @@ public class TransactionControllerTest {
                 .originalCurrency(vndTransaction.getOriginalCurrency())
                 .build();
 
-
     }
 
     @Test
@@ -320,7 +319,7 @@ public class TransactionControllerTest {
                 .andExpect(jsonPath("$.code").value(ErrorCode.TRANSACTION_NOT_FOUND.getCode()))
                 .andExpect(jsonPath("$.message").value(ErrorCode.TRANSACTION_NOT_FOUND.getMessage()));
 
-        // 确认deleteById没有被调用
-        verify(transactionService).deleteTransaction(id);
+        // Verify
+        verify(transactionService, times(1)).deleteTransaction(id);
     }
 }

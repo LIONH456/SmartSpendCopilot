@@ -1,42 +1,37 @@
 // api_service.dart
 // This service handles all interactions with the backend API, including fetching transactions and processing new expenses.
 
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../models/transaction.dart';
 import 'package:flutter/foundation.dart';
+import '../core/network/dio_client.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiServices {
   // 10.0.2.2 is the special Android Loopback interface targeting host's localhost.
   // Switch to 'http://localhost:8080/api/transactions' if debugging on iOS Simulator.
   static const String baseUrl = "http://10.0.2.2:8080/api/transactions";
+  static const String apiBaseUrl = "http://10.0.2.2:8080";
 
-  Uri _buildUri(String path, {Map<String, String?>? queryParams}) {
-    final uri = Uri.parse('$baseUrl$path');
-    final filtered = <String, String>{};
-    if (queryParams != null) {
-      queryParams.forEach((key, value) {
-        if (value != null && value.isNotEmpty) {
-          filtered[key] = value;
-        }
-      });
-    }
-    return uri.replace(queryParameters: filtered);
+  late final Dio dio;
+
+  ApiServices() {
+    const storage = FlutterSecureStorage();
+    dio = DioClient.createDio(storage);
   }
 
   // Fetches transactions from the backend API and returns a list of Transaction objects.
   Future<List<dynamic>> getTransactions({String? category, String? merchant, String sort = 'amount', String order = 'desc'}) async {
     try {
-      final uri = _buildUri('', queryParams: {
-        'category': category,
-        'merchant': merchant,
-        'sort': sort,
-        'order': order,
-      });
-      final response = await http.get(uri);
+      final queryParams = <String, String>{};
+      if (category != null && category.isNotEmpty) queryParams['category'] = category;
+      if (merchant != null && merchant.isNotEmpty) queryParams['merchant'] = merchant;
+      queryParams['sort'] = sort;
+      queryParams['order'] = order;
+
+      final response = await dio.get(baseUrl, queryParameters: queryParams);
       if (response.statusCode == 200) {
-        List<dynamic> parsedJson = jsonDecode(response.body);
-        return parsedJson.map((item) => Transaction.fromJson(item)).toList();
+        return (response.data as List<dynamic>).map((item) => Transaction.fromJson(item)).toList();
       } else {
         throw Exception(
           'Server failed to respond with status code: ${response.statusCode}',
@@ -50,16 +45,15 @@ class ApiServices {
   // Sends a transaction description to the backend for processing and returns the resulting Transaction object.
   Future<Transaction> processExpense(String description) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/process'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'description': description}),
+      final response = await dio.post(
+        '$baseUrl/process',
+        data: {'description': description},
       );
       if (response.statusCode == 200) {
-        return Transaction.fromJson(jsonDecode(response.body));
+        return Transaction.fromJson(response.data);
       } else {
         throw Exception(
-          'Failed to process expense: ${response.statusCode} ${response.reasonPhrase} - ${response.body}',
+          'Failed to process expense: ${response.statusCode} - ${response.data}',
         );
       }
     } catch (e) {
@@ -76,13 +70,15 @@ class ApiServices {
     const defaultVndToUsd = 1.0 / 25000.0;
 
     try {
-      final providerUri = Uri.https('api.exchangerate.host', '/latest', {
-        'base': base,
-        'symbols': target,
-      });
-      final providerResp = await http.get(providerUri);
-      if (providerResp.statusCode == 200) {
-        final data = jsonDecode(providerResp.body) as Map<String, dynamic>?;
+      final response = await dio.get(
+        'https://api.exchangerate.host/latest',
+        queryParameters: {
+          'base': base,
+          'symbols': target,
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>?;
         final rates = data?['rates'] as Map<String, dynamic>?;
         final rateVal = rates?[target.toUpperCase()];
         if (rateVal is num) {
@@ -94,13 +90,15 @@ class ApiServices {
     }
 
     try {
-      final uri = Uri.parse('$baseUrl/rate').replace(queryParameters: {
-        'base': base,
-        'target': target,
-      });
-      final response = await http.get(uri);
+      final response = await dio.get(
+        '$baseUrl/rate',
+        queryParameters: {
+          'base': base,
+          'target': target,
+        },
+      );
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>?;
+        final data = response.data as Map<String, dynamic>?;
         final rateVal = data?['rate'];
         if (rateVal is num) return rateVal.toDouble();
         if (rateVal != null) return double.parse(rateVal.toString());
@@ -121,9 +119,9 @@ class ApiServices {
 
   Future<void> deleteTransaction(int id) async {
     try {
-      final response = await http.delete(Uri.parse('$baseUrl/$id'));
+      final response = await dio.delete('$baseUrl/$id');
       if (response.statusCode != 204) {
-        throw Exception('Delete failed: ${response.statusCode} ${response.body}');
+        throw Exception('Delete failed: ${response.statusCode} ${response.data}');
       }
     } catch (e) {
       throw Exception('Failed to delete transaction: $e');

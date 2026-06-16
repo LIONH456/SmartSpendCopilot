@@ -2,6 +2,8 @@ package com.smartspend.copilot.exception;
 
 import com.smartspend.copilot.dto.response.ApiErrorResponse;
 import com.smartspend.copilot.service.ExchangeRateService;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -54,6 +56,41 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(ExpiredJwtException.class)
+    public ResponseEntity<ApiErrorResponse> handleExpiredToken
+            (ExpiredJwtException e, HttpServletRequest request) {
+        ErrorCode errorCode = ErrorCode.TOKEN_EXPIRED;
+
+        ApiErrorResponse response = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(errorCode.getStatus().value())
+                .code(errorCode.getCode())
+                .error(errorCode.getStatus().getReasonPhrase())
+                .message(errorCode.getMessage())
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(errorCode.getStatus()).body(response);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ApiErrorResponse> handleJwtException
+            (JwtException e, HttpServletRequest request) {
+        ErrorCode errorCode = ErrorCode.INVALID_TOKEN;
+
+        ApiErrorResponse response = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(errorCode.getStatus().value())
+                .code(errorCode.getCode())
+                .error(errorCode.getStatus().getReasonPhrase())
+                .message(errorCode.getMessage())
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(errorCode.getStatus()).body(response);
+
     }
 
     @ExceptionHandler(Exception.class)

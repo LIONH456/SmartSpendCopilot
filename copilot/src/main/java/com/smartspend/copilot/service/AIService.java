@@ -3,7 +3,9 @@ package com.smartspend.copilot.service;
 import com.smartspend.copilot.client.GeminiClient;
 import com.smartspend.copilot.entity.Transaction;
 import com.smartspend.copilot.exception.AppException;
+import com.smartspend.copilot.exception.ClarificationRequiredException;
 import com.smartspend.copilot.exception.ErrorCode;
+import com.smartspend.copilot.exception.InvalidTransactionDescriptionException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
@@ -38,6 +40,7 @@ public class AIService {
     );
 
     private static final Pattern GIBBERISH_PATTERN = Pattern.compile("^(?i)([a-z])\\1{2,}$");
+    private static final Pattern FREE_NOTICE_PATTERN = Pattern.compile("(?i)\\b(free|gift|complimentary|reward|coupon|on the house|no charge|no cost)\\b");
 
     // Separators that indicate a new transaction should follow
     private static final Pattern SPLIT_PATTERN = Pattern.compile(
@@ -50,6 +53,47 @@ public class AIService {
     public AIService(GeminiClient geminiClient, ObjectMapper objectMapper) {
         this.geminiClient = geminiClient;
         this.objectMapper = objectMapper;
+    }
+
+    private boolean hasExplicitPrice(String text) {
+        return AMOUNT_PATTERN.matcher(text).find();
+    }
+
+    private boolean hasFreeIndicator(String text) {
+        return FREE_NOTICE_PATTERN.matcher(text).find();
+    }
+
+    private void validateDescription(String normalized) {
+        if (!hasExplicitPrice(normalized) && !hasFreeIndicator(normalized)) {
+            throw new InvalidTransactionDescriptionException(
+                    "Invalid transaction description. Please include a valid price or indicate if it was free (e.g., free coffee)."
+            );
+        }
+    }
+
+    private void detectAmbiguousAmounts(String normalized) {
+        String[] chunks = SPLIT_PATTERN.split(normalized);
+        for (String chunk : chunks) {
+            if (chunk.isBlank()) continue;
+            Matcher matcher = AMOUNT_PATTERN.matcher(chunk);
+            List<Double> amounts = new ArrayList<>();
+            while (matcher.find()) {
+                try {
+                    amounts.add(Double.parseDouble(matcher.group(1).replace(',', '.')));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            if (amounts.size() > 1) {
+                String itemOnly = chunk.replaceAll(AMOUNT_PATTERN.pattern(), "").trim();
+                itemOnly = itemOnly.replaceAll("[\\$USDVNDvndđdongs]*", "").trim();
+                if (itemOnly.isBlank()) {
+                    itemOnly = "Item";
+                }
+                double val1 = amounts.get(0);
+                double val2 = amounts.get(amounts.size() - 1);
+                throw new ClarificationRequiredException(itemOnly, val1, val2);
+            }
+        }
     }
 
     /**
@@ -81,8 +125,13 @@ public class AIService {
 
         // Gibberish guard: single repeated char like "aaaaaa" or "bbbb"
         if (GIBBERISH_PATTERN.matcher(lowered.replaceAll("\\s+", "")).matches()) {
-            throw new AppException(ErrorCode.AI_PARSING_FAILED);
+            throw new InvalidTransactionDescriptionException(
+                    "Invalid transaction description. Please include a valid price or indicate if it was free (e.g., free coffee)."
+            );
         }
+
+        validateDescription(normalized);
+        detectAmbiguousAmounts(normalized);
 
         // ============= UNSUPPORTED CURRENCY BLOCKER (LAYER 1B) =============
         // If user types EUR/GBP/KHR etc. BEFORE hitting Gemini: block immediately
@@ -117,36 +166,38 @@ public class AIService {
                 You are an expense parser for an app that SUPPORTS ONLY TWO CURRENCIES: USD and VND.
                 DO NOT EVER output any other currency.
                 RULES (follow EVERY ONE):
-                1) CURRENCY WHITELIST — if you detect EUR, GBP, JPY, KHR, CNY, SGD, THB, MYR, PHP, IDR, KRW, AUD, CAD, CHF, HKD, TWD, NZD, INR, RUB, BRL, MXN, ARS, CLP, COP, PEN, VES, BOB, PYG, UYU or any other currency NOT in {USD, VND}:
-                   RETURN EXACTLY: {"error":"UNSUPPORTED_CURRENCY","hint":"系统暂时只支持美元（USD）与越南盾（VND）"}  — and nothing else.
-                2) OUTPUT SHAPE: always return a JSON object {"transactions": Array<Transaction>}.
+                1) INPUT VALIDATION — if the text does not contain any valid price or any free indicator, return EXACTLY:
+                   {"status":"INVALID","reason":"Invalid transaction description. Please include a valid price or indicate if it was free (e.g., free coffee)."}
+                2) MISSING CONTEXT RULE — if the user provides an isolated amount such as "spend 15$" or "spent 20000 VND" without specifying what was bought, where it was bought, or any merchant/item context, return EXACTLY:
+                   {"status":"INVALID","reason":"Please specify what you spent the money on (e.g., spend 15$ on lunch)."}
+                3) CURRENCY WHITELIST — if you detect EUR, GBP, JPY, KHR, CNY, SGD, THB, MYR, PHP, IDR, KRW, AUD, CAD, CHF, HKD, TWD, NZD, INR, RUB, BRL, MXN, ARS, CLP, COP, PEN, VES, BOB, PYG, UYU or any other currency NOT in {USD, VND}:
+                   RETURN EXACTLY: {"error":"UNSUPPORTED_CURRENCY","hint":"System supports USD and VND only."}  — and nothing else.
+                4) OUTPUT SHAPE: always return a JSON object {"transactions": Array<Transaction>}.
                    Each Transaction = { amount: number, category: string, merchant: string }.
-                3) AMOUNT RULE:
-                   - amount MUST be >= 0. amount == 0 is explicitly ALLOWED (free item, comp, reward,薅羊毛).
+                5) AMOUNT RULE:
+                   - amount MUST be >= 0. amount == 0 is explicitly ALLOWED (free item, comp, reward, coupon).
                    - NEVER use a NEGATIVE number.
-                   - If multiple dollar-signs or amounts appear for the SAME item (e.g. "ice cream 1$ 2$" / user correcting themselves):
-                     * If they look like a correction (same noun repeated once without and/or/comma between): use the LAST amount as single transaction.
-                     * Otherwise (multiple distinct products listed): split into separate transactions.
-                4) CATEGORY must be one of: Food,Dining,Transport,Travel,Utilities,Bills,Shopping,Entertainment,Healthcare,Education,Other.
-                5) MERCHANT: non-empty string. Infer if unclear fill "Unknown".
-                6) SPLITTING RULES (very important — output list length):
+                   - If one item has multiple amounts with no clear separator, return {"status":"CLARIFICATION_REQUIRED","options":{"item":"ice cream","val1":1.0,"val2":2.0}}.
+                6) CATEGORY must be one of: Food,Dining,Transport,Travel,Utilities,Bills,Shopping,Entertainment,Healthcare,Education,Other.
+                7) MERCHANT: non-empty string. Infer if unclear and fill "Unknown".
+                8) SPLITTING RULES (very important — output list length):
                    Split on EVERY separator listed below — within ONE line OR across NEWLINES:
                      • and, or, plus, &, +, also, then
                      • comma ",", semicolon ";", bullet "•", dash "-"
-                     • newline \n \r\n
+                     • newline \n or \r\n
                      • period followed by capital letter
                    Each separated chunk with a money amount → 1 Transaction.
-                7) EXAMPLES:
+                9) EXAMPLES:
                    - "eat ice cream for 1$ and buy shoes for 12$"
-                     → {"transactions":[{"amount":1,"category":"Food","merchant":"Unknown"},{"amount":12,"category":"Shoppin...
+                     → {"transactions":[{"amount":1,"category":"Food","merchant":"Unknown"},{"amount":12,"category":"Shopping","merchant":"Unknown"}]}
                    - "coffee 3$, sandwich 8$"
                      → 2 transactions.
-                   - "ice cream 1$ 2$" (correction — no separator between amounts)
-                     → 1 transaction amount 2.
+                   - "ice cream 1$ 2$" (no separator between amounts)
+                     → {"status":"CLARIFICATION_REQUIRED","options":{"item":"ice cream","val1":1.0,"val2":2.0}}.
                    - "free pizza from dominos"  → 1 transaction amount=0, category=Food, merchant=Dominos.
-                8) IF completely unparseable return {"transactions":[]}.
-                9) NEVER put markdown fences ```json or ``` around output — raw JSON ONLY.
-                10) Final JSON array length MUST match the number of distinct money amounts in input unless amounts clearly represent corrections within ONE item.
+                10) IF completely unparseable or context is missing return {"status":"INVALID","reason":"Please specify what you spent the money on (e.g., spend 15$ on lunch)."}.
+                11) NEVER include markdown fences ```json or ``` in the output — raw JSON ONLY.
+                12) Final JSON array length MUST match the number of distinct money amounts in input unless amounts clearly represent corrections within ONE item.
                 """;
 
         String escaped = normalized.replace("\"", "\\\"");
@@ -187,8 +238,25 @@ public class AIService {
             if (payload.has("error")) {
                 String err = payload.path("error").asText("");
                 if ("UNSUPPORTED_CURRENCY".equalsIgnoreCase(err)) {
-                    String hint = payload.path("hint").asText("系统暂时只支持美元（USD）与越南盾（VND）");
+                    String hint = payload.path("hint").asText("System supports USD and VND only.");
                     throw new AppException(ErrorCode.UNSUPPORTED_CURRENCY_PAIR, hint);
+                }
+            }
+
+            if (payload.has("status")) {
+                String status = payload.path("status").asText("");
+                if ("INVALID".equalsIgnoreCase(status)) {
+                    String reason = payload.path("reason").asText(
+                            "Invalid transaction description. Please include a valid price or indicate if it was free (e.g., free coffee)."
+                    );
+                    throw new InvalidTransactionDescriptionException(reason);
+                }
+                if ("CLARIFICATION_REQUIRED".equalsIgnoreCase(status)) {
+                    JsonNode options = payload.path("options");
+                    String item = options.path("item").asText("Item");
+                    double val1 = options.path("val1").asDouble(0.0);
+                    double val2 = options.path("val2").asDouble(0.0);
+                    throw new ClarificationRequiredException(item, val1, val2);
                 }
             }
 

@@ -65,21 +65,19 @@ public class AIServiceTest {
     }
 
     @Test
-    void shouldThrowExceptionWhenJsonParsingFail(){
+    void shouldFallbackToRegexWhenJsonParsingFails(){
         // Arrange
         String invalidResponse = "INVALID JSON RESPONSE";
         when(geminiClient.generateContent(anyString())).thenReturn(invalidResponse);
 
         // Act
-        AppException runtimeException = assertThrows(
-                AppException.class, // 预期抛出 RuntimeException
-                ()-> aiService.parseTransaction("spent 15 dollars")// lambda: 把这段代码交给 JUnit 执行
-        );
+        Transaction result = aiService.parseTransaction("spent 15 dollars");
 
         // Assert
-        assertEquals("AI returned invalid response", runtimeException.getMessage());
-        // 确认 geminiClient 的 generateContent() 真的被调用过
-        // time(1): 必须刚好调用一次,只调用一次，避免多次要还bill啊，我没钱
+        assertNotNull(result);
+        assertEquals(15.0, result.getAmount());
+        assertEquals("Other", result.getCategory());
+        assertEquals("Unknown", result.getMerchant());
         verify(geminiClient, times(1)).generateContent(anyString());
     }
 }

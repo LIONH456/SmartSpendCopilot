@@ -26,6 +26,7 @@ class ExpenseViewModel extends ChangeNotifier {
 
   String _displayCurrency = 'USD';
   double _exchangeRate = 1.0;
+  String? _currentUsername;
 
   List<Transaction> get transactions => List.unmodifiable(_transactions);
   bool get isLoading => _isLoading;
@@ -38,6 +39,7 @@ class ExpenseViewModel extends ChangeNotifier {
   String get sortOrder => _sortOrder;
   String get displayCurrency => _displayCurrency;
   double get exchangeRate => _exchangeRate;
+  String? get currentUsername => _currentUsername;
 
   double get totalExpenses {
     final sum = _transactions.fold<double>(
@@ -98,6 +100,14 @@ class ExpenseViewModel extends ChangeNotifier {
     _sortOrder = 'desc';
     _exchangeRate = 1.0;
     _displayCurrency = 'USD';
+    _currentUsername = null;
+    notifyListeners();
+  }
+
+  void setCurrentUser({String? username}) {
+    _currentUsername = username != null && username.trim().isNotEmpty
+        ? username.trim()
+        : null;
     notifyListeners();
   }
 
@@ -171,6 +181,27 @@ class ExpenseViewModel extends ChangeNotifier {
     _categoryFilter = null;
     _merchantFilter = null;
     await loadTransactions(sortField: _sortField, sortOrder: _sortOrder);
+  }
+
+  Future<bool> updateTransaction(Transaction transaction) async {
+    _errorMessage = null;
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final updated = await _apiServices.updateTransaction(transaction.id!, transaction);
+      final index = _transactions.indexWhere((item) => item.id == transaction.id);
+      if (index != -1) {
+        _transactions[index] = updated;
+      }
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = userFriendlyMessage(e);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> deleteTransaction(int id) async {

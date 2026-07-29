@@ -1,6 +1,7 @@
 package com.smartspend.copilot.controller;
 
 import com.smartspend.copilot.dto.request.ProcessTransactionRequest;
+import com.smartspend.copilot.dto.request.TransactionRequest;
 import com.smartspend.copilot.dto.response.ApiErrorResponse;
 import com.smartspend.copilot.dto.response.PaginatedResponse;
 import com.smartspend.copilot.dto.response.TransactionResponse;
@@ -74,6 +75,24 @@ public class TransactionController {
                 .map(transactionMapper::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
+    }
+
+    @Operation(
+            summary = "Update transaction",
+            description = "Update an existing transaction by id for the current authenticated user"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Transaction updated successfully"),
+            @ApiResponse(responseCode = "404", description = "Transaction not found",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<TransactionResponse> updateTransaction(
+            @PathVariable Long id,
+            @Valid @RequestBody TransactionRequest request
+    ) {
+        Transaction updated = transactionService.updateTransaction(id, request);
+        return ResponseEntity.ok(transactionMapper.toResponse(updated));
     }
 
     @Operation(

@@ -238,6 +238,33 @@ class ApiServices {
     );
   }
 
+  Future<Transaction> updateTransaction(int id, Transaction transaction) async {
+    try {
+      final response = await dio.put<Map<String, dynamic>>(
+        '/api/transactions/$id',
+        data: {
+          'amount': transaction.amount,
+          'category': transaction.category,
+          'merchant': transaction.merchant,
+          'currency': transaction.currency,
+          'originalDescription': transaction.originalDescription,
+        },
+      );
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        return Transaction.fromJson(response.data! as Map<String, dynamic>);
+      }
+      throw ApiError(
+        status: response.statusCode ?? 0,
+        code: 9001,
+        error: 'Update Failed',
+        message: 'Failed to update transaction (HTTP ${response.statusCode})',
+        path: '/api/transactions/$id',
+      );
+    } catch (e) {
+      throw _throwStructured(e, '/api/transactions/$id');
+    }
+  }
+
   Future<void> deleteTransaction(int id) async {
     try {
       final response = await dio.delete<void>('/api/transactions/$id');

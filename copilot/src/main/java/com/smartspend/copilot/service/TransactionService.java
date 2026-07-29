@@ -1,5 +1,6 @@
 package com.smartspend.copilot.service;
 
+import com.smartspend.copilot.dto.request.TransactionRequest;
 import com.smartspend.copilot.entity.User;
 import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.exception.ErrorCode;
@@ -118,6 +119,20 @@ public class TransactionService {
 
         // 4. Batch save: one INSERT statement per list item when using saveAll()
         return transactionRepository.saveAll(toSave);
+    }
+
+    public Transaction updateTransaction(Long id, TransactionRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        Transaction transaction = transactionRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+        transaction.setAmount(request.getAmount());
+        transaction.setCategory(request.getCategory().trim());
+        transaction.setMerchant(request.getMerchant().trim());
+        transaction.setCurrency(request.getCurrency().trim().toUpperCase(Locale.ROOT));
+        transaction.setOriginalDescription(request.getOriginalDescription() == null ? transaction.getOriginalDescription() : request.getOriginalDescription().trim());
+        transaction.setOriginalCurrency(transaction.getOriginalCurrency() == null ? transaction.getCurrency() : transaction.getOriginalCurrency());
+        return transactionRepository.save(transaction);
     }
 
     public void deleteTransaction(Long id) {

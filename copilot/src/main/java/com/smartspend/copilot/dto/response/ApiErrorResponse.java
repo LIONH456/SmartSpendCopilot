@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -22,6 +23,8 @@ public class ApiErrorResponse {
     String error; // HTTP 状态名字：Bad Request, Not Found, Internal Server Error
     @Schema(description = "Specific reasons for business errors", example = "Description cannot be blank")
     String message; // 真正业务错误
+    @Schema(description = "Additional structured details for the error, if available")
+    Map<String, Object> details;
     @Schema(description = "API request path that triggered the crash", example = "/api/transactions/process")
     String path; // 哪个 endpoint 爆炸
 }

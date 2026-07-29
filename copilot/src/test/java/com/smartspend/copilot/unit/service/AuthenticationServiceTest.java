@@ -126,10 +126,11 @@ public class AuthenticationServiceTest {
         when(jwtService.generateToken(user.getUsername())).thenReturn("fakeToken");
 
         // Act
-        String token = authenticationService.login(loginRequest);
+        var authResponse = authenticationService.login(loginRequest);
 
         // Assert
-        assertEquals("fakeToken", token);
+        assertEquals("fakeToken", authResponse.getToken());
+        assertEquals(user.getUsername(), authResponse.getUsername());
 
         // Verify
         verify(jwtService).generateToken(user.getUsername());
@@ -145,10 +146,11 @@ public class AuthenticationServiceTest {
         when(jwtService.generateToken(user.getUsername())).thenReturn("fakeToken");
 
         // Act
-        String token = authenticationService.login(loginRequest);
+        var authResponse = authenticationService.login(loginRequest);
 
         // Assert
-        assertEquals("fakeToken", token);
+        assertEquals("fakeToken", authResponse.getToken());
+        assertEquals(user.getUsername(), authResponse.getUsername());
 
         // Verify
         verify(jwtService).generateToken(user.getUsername());

@@ -19,6 +19,7 @@ public enum ErrorCode {
     EXCHANGE_RATE_UNAVALIABLE(3002, "Exchange rate service unavailable", HttpStatus.SERVICE_UNAVAILABLE),
     AI_PARSING_FAILED(4001, "Failed to parse transaction", HttpStatus.INTERNAL_SERVER_ERROR),
     AI_RESPONSE_INVALID(4002, "AI returned invalid response", HttpStatus.INTERNAL_SERVER_ERROR),
+    CLARIFICATION_REQUIRED(4003, "Clarification required", HttpStatus.BAD_REQUEST),
     VALIDATION_ERROR(5001, "Validation failed", HttpStatus.BAD_REQUEST),
     DESCRIPTION_BLANK(5002, "Description cannot be blank", HttpStatus.BAD_REQUEST),
     INVALID_EMAIL(5003, "Invalid email", HttpStatus.BAD_REQUEST),

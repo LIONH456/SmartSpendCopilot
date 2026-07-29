@@ -80,9 +80,9 @@ public class TransactionServiceTest {
     @Test
     void shouldProcessUsdTransactionSuccessfully(){
         // Arrange
-        when(aiService.parseTransaction(usdDescription)).thenReturn(usdTransaction);
+        when(aiService.parseTransactions(usdDescription)).thenReturn(List.of(usdTransaction));
         when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(usdTransaction);
+        when(transactionRepository.saveAll(any())).thenReturn(List.of(usdTransaction));
 
         // Act
         Transaction transaction = transactionService.processTransaction(usdDescription);
@@ -94,9 +94,9 @@ public class TransactionServiceTest {
         assertEquals(15.0, transaction.getAmount());
 
         // verify
-        verify(aiService).parseTransaction(usdDescription);
+        verify(aiService).parseTransactions(usdDescription);
         verify(exchangeRateService, never()).getRate(anyString(), anyString());
-        verify(transactionRepository).save(any(Transaction.class));
+        verify(transactionRepository).saveAll(any());
     }
 
     @Test
@@ -104,9 +104,9 @@ public class TransactionServiceTest {
         // Arrange
         double rate = 24000.0;
         when(exchangeRateService.getRate("USD", "VND")).thenReturn(rate);
-        when(aiService.parseTransaction(vndDescription)).thenReturn(vndTransaction);
+        when(aiService.parseTransactions(vndDescription)).thenReturn(List.of(vndTransaction));
         when(currentUserService.getCurrentUser()).thenReturn(fakeUser);
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(vndTransaction);
+        when(transactionRepository.saveAll(any())).thenReturn(List.of(vndTransaction));
 
         // Act
         Transaction transaction = transactionService.processTransaction(vndDescription);
@@ -117,9 +117,9 @@ public class TransactionServiceTest {
         assertEquals(10, transaction.getAmount());
 
         // Verify
-        verify(aiService).parseTransaction(vndDescription);
+        verify(aiService).parseTransactions(vndDescription);
         verify(exchangeRateService, times(1)).getRate("USD", "VND");
-        verify(transactionRepository).save(any(Transaction.class));
+        verify(transactionRepository).saveAll(any());
     }
 
     @Test
@@ -139,7 +139,7 @@ public class TransactionServiceTest {
     @Test
     void shouldThrowExceptionWhenAIParsingFails(){
         // Arrange
-        when(aiService.parseTransaction(anyString())).thenReturn(null);
+        when(aiService.parseTransactions(anyString())).thenReturn(List.of());
 
         // Act
         AppException exception = assertThrows(
@@ -151,7 +151,7 @@ public class TransactionServiceTest {
         assertEquals("Failed to parse transaction", exception.getMessage());
 
         // verify
-        verify(aiService).parseTransaction("Spend 15$ dollars");
+        verify(aiService).parseTransactions("Spend 15$ dollars");
     }
 
     @Test

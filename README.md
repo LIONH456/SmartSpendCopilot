@@ -28,6 +28,11 @@ The system automatically extracts structured transaction data using AI and store
 - ✅ Token-based Authorization
 - ✅ Flutter Frontend Authentication
 - ✅ Comprehensive Test Coverage
+- ✅ Sign-up redirection fix that sends users to the Login View after successful account creation
+- ✅ Personalized welcome header displaying "Hi, {{username}}"
+- ✅ Manual transaction edit support through a dedicated PUT API and matching UI workflow
+- ✅ Authenticated reset password API and interface flow
+- ✅ Contextless input validation fallback that rejects structurally incomplete phrases such as "spend 15$" and prevents invalid database writes
 
 ---
 
@@ -224,6 +229,97 @@ Example Error Response:
 
 ---
 
+## 🧪 Automated Testing Showcase (Appium)
+
+This project also demonstrates an enterprise-style approach to mobile quality assurance. The automated testing layer is designed to showcase professional QA engineering practices for recruiters, hiring managers, and interviewers reviewing this repository.
+
+### What This Showcase Demonstrates
+
+- End-to-end mobile test automation thinking for a Flutter application
+- Structured test case design for real user flows
+- Stable element identification using Flutter-friendly hooks such as ValueKey
+- Explicit waiting strategies instead of brittle timing-based assertions
+- Validation of critical behaviors such as unauthorized login handling and contextless input rejection
+
+### Example Appium Boilerplate (Python)
+
+```python
+import unittest
+from appium import webdriver
+from appium.options.android import UiAutomator2Options
+from selenium.webdriver.support.ui import WebDriverWait
+
+
+class SmartSpendAppiumTests(unittest.TestCase):
+    def setUp(self) -> None:
+        options = UiAutomator2Options()
+        options.load_capabilities({
+            "platformName": "Android",
+            "automationName": "flutter",
+            "deviceName": "Android Emulator",
+            "app": "path/to/smartspend.apk",
+            "noReset": False,
+            "newCommandTimeout": 3600,
+        })
+
+        self.driver = webdriver.Remote("http://127.0.0.1:4723", options=options)
+        self.wait = WebDriverWait(self.driver, 15)
+
+    def tearDown(self) -> None:
+        if hasattr(self, "driver"):
+            self.driver.quit()
+
+    def test_contextless_phrase_shows_structural_error(self) -> None:
+        username_field = self.wait.until(
+            lambda d: d.find_element("flutter", "valueKey", "usernameField")
+        )
+        username_field.send_keys("qa_tester")
+
+        password_field = self.wait.until(
+            lambda d: d.find_element("flutter", "valueKey", "passwordField")
+        )
+        password_field.send_keys("StrongPass123!")
+
+        login_button = self.wait.until(
+            lambda d: d.find_element("flutter", "valueKey", "loginButton")
+        )
+        login_button.click()
+
+        transaction_input = self.wait.until(
+            lambda d: d.find_element("flutter", "valueKey", "transactionInput")
+        )
+        transaction_input.send_keys("spend 15$")
+
+        submit_button = self.wait.until(
+            lambda d: d.find_element("flutter", "valueKey", "submitTransactionButton")
+        )
+        submit_button.click()
+
+        snackbar = self.wait.until(
+            lambda d: d.find_element("flutter", "valueKey", "errorSnackbar")
+        )
+        self.assertIn("context", snackbar.text.lower())
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+### Flutter Locator Strategy
+
+For reliable Appium automation, the Flutter UI should expose stable hooks such as:
+
+```dart
+TextField(
+  key: const ValueKey('usernameField'),
+  decoration: const InputDecoration(labelText: 'Username'),
+)
+```
+
+This approach makes the mobile automation layer more maintainable and less fragile than relying on text-only selectors.
+
+---
+
 ## 🛠 Tech Stack
 
 ### Backend
@@ -397,10 +493,12 @@ Query Parameters:
 
 ### Dashboard
 - Real-time expense tracking
+- Personalized welcome header displaying "Hi, {{username}}"
 - Currency toggle (USD/VND)
 - Transaction filtering & sorting
 - Pagination support
 - Clean, dark-themed UI
+- Reset password flow integrated into the authenticated experience
 
 ---
 

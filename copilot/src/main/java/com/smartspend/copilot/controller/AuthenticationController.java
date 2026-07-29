@@ -2,6 +2,7 @@ package com.smartspend.copilot.controller;
 
 import com.smartspend.copilot.dto.request.LoginRequest;
 import com.smartspend.copilot.dto.request.RegisterRequest;
+import com.smartspend.copilot.dto.request.ResetPasswordRequest;
 import com.smartspend.copilot.dto.response.ApiErrorResponse;
 import com.smartspend.copilot.dto.response.AuthResponse;
 import com.smartspend.copilot.service.AuthenticationService;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -55,7 +57,24 @@ public class AuthenticationController {
     })
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request){
-        String token = authenticationService.login(request);
-        return ResponseEntity.ok(AuthResponse.builder().token(token).build());
+        AuthResponse response = authenticationService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Reset current user's password",
+            description = "Verifies the current password before updating it for the authenticated user"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password reset successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request or password validation failed",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Current password is incorrect",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    @PutMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authenticationService.resetPassword(request);
+        return ResponseEntity.ok().build();
     }
 }

@@ -2,6 +2,8 @@ package com.smartspend.copilot.service;
 
 import com.smartspend.copilot.dto.request.LoginRequest;
 import com.smartspend.copilot.dto.request.RegisterRequest;
+import com.smartspend.copilot.dto.request.ResetPasswordRequest;
+import com.smartspend.copilot.dto.response.AuthResponse;
 import com.smartspend.copilot.entity.User;
 import com.smartspend.copilot.exception.AppException;
 import com.smartspend.copilot.exception.ErrorCode;
@@ -19,6 +21,7 @@ public class AuthenticationService {
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;
     JwtService jwtService;
+    CurrentUserService currentUserService;
 
     public void register(RegisterRequest request){
         if(userRepository.existsByUsername(request.getUsername())){
@@ -38,7 +41,7 @@ public class AuthenticationService {
         userRepository.save(user);
     }
 
-    public String login(LoginRequest request){
+    public AuthResponse login(LoginRequest request){
         User user = userRepository.findByUsername(request.getLogin())
                 .or(()->userRepository.findByEmail(request.getLogin()))
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -49,6 +52,21 @@ public class AuthenticationService {
             throw new AppException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        return jwtService.generateToken(user.getUsername());
+        String token = jwtService.generateToken(user.getUsername());
+        return AuthResponse.builder()
+                .token(token)
+                .username(user.getUsername())
+                .build();
+    }
+
+    public void resetPassword(ResetPasswordRequest request) {
+        User currentUser = currentUserService.getCurrentUser();
+        boolean matches = passwordEncoder.matches(request.getOldPassword(), currentUser.getPassword());
+        if (!matches) {
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        currentUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(currentUser);
     }
 }

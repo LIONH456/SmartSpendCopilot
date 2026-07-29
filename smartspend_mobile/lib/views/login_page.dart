@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:smartspend_mobile/core/network/api_error.dart'
     show userFriendlyMessage;
 import 'package:smartspend_mobile/services/auth_service.dart';
-import 'package:smartspend_mobile/views/dashboard_view.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,6 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -42,9 +42,7 @@ class _LoginPageState extends State<LoginPage> {
           duration: Duration(seconds: 2),
         ),
       );
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardView()),
-      );
+      await Navigator.of(context).pushReplacementNamed('/dashboard');
     } catch (e) {
       final message = userFriendlyMessage(e,
           fallback: 'Sign in failed. Please try again.');
@@ -117,10 +115,14 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12)),
                       filled: true,
@@ -137,7 +139,29 @@ class _LoginPageState extends State<LoginPage> {
                     },
                     onFieldSubmitted: (_) => _handleSubmit(),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () async {
+                        await showDialog<void>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Password recovery'),
+                            content: const Text('Password recovery options are coming soon. Please contact support if you need help accessing your account.'),
+                            actions: [
+                              FilledButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: const Text('Forgot Password?'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
@@ -197,6 +221,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final _confirmController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
@@ -225,9 +251,7 @@ class _RegisterPageState extends State<RegisterPage> {
           duration: Duration(seconds: 2),
         ),
       );
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardView()),
-      );
+      await Navigator.of(context).pushReplacementNamed('/login');
     } catch (e) {
       final message = userFriendlyMessage(e,
           fallback: 'Sign up failed. Please try again.');
@@ -317,11 +341,15 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText:
                           'Password (8+ chars, upper, lower, digit, special)',
                       prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12)),
                       filled: true,
@@ -346,10 +374,14 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _confirmController,
-                    obscureText: true,
+                    obscureText: _obscureConfirm,
                     decoration: InputDecoration(
                       labelText: 'Confirm password',
                       prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                      ),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12)),
                       filled: true,

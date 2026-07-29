@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 // 监听全项目 controller exception
@@ -24,13 +25,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiErrorResponse> handleAppException(AppException e, HttpServletRequest request) {
         ErrorCode errorCode = e.getErrorCode();
+        Map<String, Object> details = Collections.emptyMap();
+        if (e instanceof ClarificationRequiredException clarification) {
+            details = Map.of(
+                    "item", clarification.getItem(),
+                    "val1", clarification.getVal1(),
+                    "val2", clarification.getVal2(),
+                    "clarification", true
+            );
+        }
 
         ApiErrorResponse response = ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(errorCode.getStatus().value())
                 .code(errorCode.getCode())
                 .error(errorCode.getStatus().getReasonPhrase())
-                .message(errorCode.getMessage())
+                .message(e.getMessage())
+                .details(details)
                 .path(request.getRequestURI())
                 .build();
 
@@ -41,10 +52,43 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleValidationException
             (MethodArgumentNotValidException e, HttpServletRequest request) {
 
-        // 会返回 @NotBlank或其他validation里的message
-        String key = e.getBindingResult().getFieldError().getDefaultMessage();
+        var fieldErrors = e.getBindingResult().getFieldErrors();
+        var priority = List.of(
+                "USERNAME_BLANK",
+                "EMAIL_BLANK",
+                "PASSWORD_BLANK",
+                "USERNAME_INVALID_LENGTH",
+                "INVALID_EMAIL",
+                "PASSWORD_INVALID"
+        );
 
-        ErrorCode errorCode = ErrorCode.valueOf(key)   ;
+        String key = "VALIDATION_ERROR";
+        int bestIndex = Integer.MAX_VALUE;
+        for (var fe : fieldErrors) {
+            String message = fe.getDefaultMessage();
+            if (message == null || message.isBlank()) {
+                continue;
+            }
+            int index = priority.indexOf(message);
+            if (index >= 0 && index < bestIndex) {
+                bestIndex = index;
+                key = message;
+            }
+        }
+        if ("VALIDATION_ERROR" .equals(key)) {
+            key = fieldErrors.stream()
+                    .map(fe -> fe.getDefaultMessage())
+                    .filter(msg -> msg != null && !msg.isBlank())
+                    .findFirst()
+                    .orElse("VALIDATION_ERROR");
+        }
+
+        ErrorCode errorCode;
+        try {
+            errorCode = ErrorCode.valueOf(key);
+        } catch (IllegalArgumentException ex) {
+            errorCode = ErrorCode.VALIDATION_ERROR;
+        }
 
         ApiErrorResponse response = ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())

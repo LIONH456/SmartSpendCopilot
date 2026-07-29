@@ -4,6 +4,7 @@ import 'package:smartspend_mobile/core/network/api_error.dart';
 import 'package:smartspend_mobile/models/transaction.dart';
 import 'package:smartspend_mobile/services/auth_service.dart';
 import 'package:smartspend_mobile/view_models/expense_view_model.dart';
+import 'package:smartspend_mobile/views/edit_transaction_view.dart';
 import 'package:smartspend_mobile/views/login_page.dart';
 
 class DashboardView extends StatefulWidget {
@@ -203,6 +204,108 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
+  Future<void> _showPasswordDialog(BuildContext context) async {
+    final currentUser = context.read<ExpenseViewModel>().currentUsername ?? 'there';
+    final oldController = TextEditingController();
+    final newController = TextEditingController();
+    final confirmController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool obscureOld = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogContext, setState) => AlertDialog(
+            title: Text('Reset Password for $currentUser'),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: oldController,
+                      obscureText: obscureOld,
+                      decoration: InputDecoration(
+                        labelText: 'Current Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(obscureOld ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => obscureOld = !obscureOld),
+                        ),
+                      ),
+                      validator: (value) => (value ?? '').isEmpty ? 'Please enter your current password' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: newController,
+                      obscureText: obscureNew,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(obscureNew ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => obscureNew = !obscureNew),
+                        ),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').isEmpty) return 'Please enter a new password';
+                        if ((value ?? '').length < 8) return 'At least 8 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: confirmController,
+                      obscureText: obscureConfirm,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm New Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => obscureConfirm = !obscureConfirm),
+                        ),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').isEmpty) return 'Please confirm your new password';
+                        if (value != newController.text) return 'Passwords do not match';
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+                  final auth = context.read<AuthService>();
+                  try {
+                    await auth.resetPassword(oldController.text, newController.text);
+                    if (!dialogContext.mounted) return;
+                    Navigator.of(dialogContext).pop();
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Password updated successfully')),
+                    );
+                  } catch (e) {
+                    if (!dialogContext.mounted) return;
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(content: Text(userFriendlyMessage(e, fallback: 'Failed to reset password'))),
+                    );
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).primaryColor;
@@ -215,8 +318,18 @@ class _DashboardViewState extends State<DashboardView> {
           children: [
             Icon(Icons.account_balance_wallet, color: accent),
             const SizedBox(width: 8),
-            const Text('SmartSpend',
-                style: TextStyle(fontWeight: FontWeight.w800)),
+            Expanded(
+              child: Consumer<ExpenseViewModel>(
+                builder: (ctx, vm, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('SmartSpend', style: TextStyle(fontWeight: FontWeight.w800)),
+                    if (vm.currentUsername != null)
+                      Text('Hi, ${vm.currentUsername}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -245,6 +358,18 @@ class _DashboardViewState extends State<DashboardView> {
             builder: (ctx) => PopupMenuButton<void>(
               icon: const Icon(Icons.more_vert),
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  onTap: () async {
+                    await _showPasswordDialog(ctx);
+                  },
+                  child: const Row(
+                    children: [
+                      Icon(Icons.lock_reset, size: 18),
+                      SizedBox(width: 10),
+                      Text('Reset Password'),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   onTap: () {
                     final auth = ctx.read<AuthService>();
@@ -810,6 +935,18 @@ class _TxTile extends StatelessWidget {
                 Text(currency,
                     style: TextStyle(
                         color: Colors.grey.shade500, fontSize: 11)),
+                const SizedBox(height: 8),
+                IconButton(
+                  tooltip: 'Edit transaction',
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => EditTransactionView(transaction: tx),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ],

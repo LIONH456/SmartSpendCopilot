@@ -44,7 +44,31 @@ class AuthService {
 
   Future<bool> isAuthenticated() async {
     final token = await _readToken();
-    return token != null && token.trim().isNotEmpty;
+    final authenticated = token != null && token.trim().isNotEmpty;
+    if (authenticated) {
+      final username = await getUsername();
+      expenseViewModel.setCurrentUser(username: username);
+    } else {
+      expenseViewModel.clearLocalState();
+    }
+    return authenticated;
+  }
+
+  Future<String?> _extractUsername(Map<String, dynamic> payload) async {
+    final candidates = [
+      payload['username'],
+      payload['userName'],
+      payload['name'],
+      (payload['data'] is Map<String, dynamic>)
+          ? payload['data']['username'] ?? payload['data']['userName']
+          : null,
+    ];
+    for (final raw in candidates) {
+      if (raw == null) continue;
+      final str = raw.toString().trim();
+      if (str.isNotEmpty) return Future.value(str);
+    }
+    return null;
   }
 
   Future<String> _extractRawToken(Map<String, dynamic> payload) {
@@ -95,15 +119,15 @@ class AuthService {
       );
       final data = response.data as Map<String, dynamic>;
       final token = await _extractRawToken(data);
+      final username = await _extractUsername(data);
       expenseViewModel.clearLocalState();
+      expenseViewModel.setCurrentUser(username: username);
       await _writeToken(token);
-      // Persist user details: backend AuthResponse only contains token, so we
-      // fall back to the caller-provided identity and guess email vs username
-      // based on whether the login input contains an '@' sign.
+      // Persist user details: backend AuthResponse now includes username when available.
       final looksLikeEmail = trimmedLogin.contains('@');
       await _saveUserDetails(
         email: looksLikeEmail ? trimmedLogin : null,
-        username: looksLikeEmail ? null : trimmedLogin,
+        username: username ?? (looksLikeEmail ? null : trimmedLogin),
       );
       return token;
     } on DioException catch (e) {
@@ -140,6 +164,8 @@ class AuthService {
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
         expenseViewModel.clearLocalState();
+        await _saveUserDetails(email: email.trim(), username: username.trim());
+        expenseViewModel.setCurrentUser(username: username.trim());
         return;
       }
       final body = response.data;
@@ -163,6 +189,53 @@ class AuthService {
         message: userFriendlyMessage(e,
             fallback: 'An unexpected error occurred during sign up.'),
         path: '/api/auth/register',
+      );
+    }
+  }
+
+  Future<void> resetPassword(String oldPassword, String newPassword) async {
+    final token = await _readToken();
+    try {
+      final response = await dio.put(
+        '/api/auth/reset-password',
+        data: {
+          'oldPassword': oldPassword,
+          'newPassword': newPassword,
+        },
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (token != null && token.trim().isNotEmpty)
+              'Authorization': 'Bearer ${token.trim()}',
+          },
+          validateStatus: (s) => s != null && s >= 200 && s < 400,
+        ),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return;
+      }
+      final body = response.data;
+      if (body is Map<String, dynamic>) {
+        throw ApiError.fromJson(body);
+      }
+      throw ApiError(
+        status: response.statusCode ?? 0,
+        code: 9001,
+        error: 'Unexpected Status',
+        message: 'Password reset failed with HTTP ${response.statusCode}.',
+        path: '/api/auth/reset-password',
+      );
+    } on DioException catch (e) {
+      throw ApiError.fromDioException(e);
+    } catch (e) {
+      throw ApiError(
+        status: 500,
+        code: 1003,
+        error: 'Unexpected Error',
+        message: userFriendlyMessage(e,
+            fallback: 'An unexpected error occurred while resetting your password.'),
+        path: '/api/auth/reset-password',
       );
     }
   }

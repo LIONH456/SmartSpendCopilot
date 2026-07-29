@@ -63,13 +63,128 @@ class _DashboardViewState extends State<DashboardView> {
           duration: const Duration(seconds: 2),
         ),
       );
-    } else {
-      final inline = vm.errorMessage;
-      final fallback = userFriendlyMessage(inline,
-          fallback: 'AI failed to parse that. Please rephrase and retry.');
+      return;
+    }
+
+    if (vm.clarificationRequired && vm.lastApiError != null) {
+      await _showClarificationOptions(context, text, vm.lastApiError!);
+      return;
+    }
+
+    final errorMessage = vm.errorMessage;
+    if (errorMessage != null && errorMessage.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(fallback),
+          content: Text(errorMessage),
+          backgroundColor: const Color(0xFFDC2626),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(userFriendlyMessage(
+            'AI failed to parse that. Please rephrase and retry.')),
+        backgroundColor: const Color(0xFFDC2626),
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  Future<void> _showClarificationOptions(
+    BuildContext context,
+    String originalText,
+    ApiError error,
+  ) async {
+    final details = error.details ?? <String, dynamic>{};
+    final item = (details['item'] ?? 'Item').toString();
+    final val1 = _asDouble(details['val1']);
+    final val2 = _asDouble(details['val2']);
+    final sum = val1 + val2;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Ambiguous amount detected',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'We found multiple conflicting values for "$item". Choose how to resolve it.',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  final mergedText = '$item ${sum.toStringAsFixed(2)}';
+                  await _retryClarification(context, mergedText, originalText);
+                },
+                child: Text('Merge into ${sum.toStringAsFixed(2)}'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  final splitText = '$item ${val1.toStringAsFixed(2)}, $item ${val2.toStringAsFixed(2)}';
+                  await _retryClarification(context, splitText, originalText);
+                },
+                child: const Text('Create 2 Bills'),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel & Edit'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  double _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  Future<void> _retryClarification(
+    BuildContext context,
+    String newText,
+    String originalText,
+  ) async {
+    final vm = context.read<ExpenseViewModel>();
+    final created = await vm.processRawExpense(newText);
+    if (!mounted) return;
+    if (created > 0) {
+      _inputController.text = newText;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Recorded $created transaction(s)'),
+          backgroundColor: const Color(0xFF16A34A),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final errorMessage = vm.errorMessage;
+    if (errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
           backgroundColor: const Color(0xFFDC2626),
           duration: const Duration(seconds: 5),
         ),
@@ -158,7 +273,7 @@ class _DashboardViewState extends State<DashboardView> {
           onRefresh: () =>
               context.read<ExpenseViewModel>().loadTransactions(),
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const ClampingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,14 +733,12 @@ class _TxTile extends StatelessWidget {
       onDismissed: (_) async {
         final id = tx.id;
         if (id == null) return;
-        final ok =
-            await context.read<ExpenseViewModel>().deleteTransaction(id);
+        final viewModel = context.read<ExpenseViewModel>();
+        final ok = await viewModel.deleteTransaction(id);
         if (!ok && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context
-                      .read<ExpenseViewModel>()
-                      .errorMessage ??
+              content: Text(viewModel.errorMessage ??
                   'Failed to delete transaction'),
               backgroundColor: const Color(0xFFDC2626),
               duration: const Duration(seconds: 3),

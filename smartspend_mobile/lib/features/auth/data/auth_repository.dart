@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../core/network/api_error.dart';
 import 'auth_api.dart';
 
 class AuthRepository {
@@ -14,11 +15,21 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
-    await api.register(
+    final response = await api.register(
       username: username,
       email: email,
       password: password,
     );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ApiError(
+        status: response.statusCode ?? 0,
+        code: 9001,
+        error: 'Registration failed',
+        message: 'Registration failed with HTTP ${response.statusCode}.',
+        path: '/api/auth/register',
+      );
+    }
   }
 
   Future<String> login({

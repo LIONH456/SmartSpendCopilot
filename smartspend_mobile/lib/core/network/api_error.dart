@@ -9,6 +9,7 @@ class ApiError {
   final String error;
   final String message;
   final String path;
+  final Map<String, dynamic>? details;
 
   ApiError({
     required this.status,
@@ -16,6 +17,7 @@ class ApiError {
     required this.error,
     required this.message,
     required this.path,
+    this.details,
   });
 
   factory ApiError.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,7 @@ class ApiError {
       error: json['error'] as String? ?? 'Unknown',
       message: json['message'] as String? ?? 'An unknown error occurred',
       path: json['path'] as String? ?? '',
+      details: json['details'] is Map<String, dynamic> ? json['details'] as Map<String, dynamic> : null,
     );
   }
 

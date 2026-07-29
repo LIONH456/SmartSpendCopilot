@@ -138,11 +138,21 @@ class AuthService {
           validateStatus: (s) => s != null && s >= 200 && s < 400,
         ),
       );
-      final data = response.data as Map<String, dynamic>;
-      final token = await _extractRawToken(data);
-      expenseViewModel.clearLocalState();
-      await _writeToken(token);
-      await _saveUserDetails(email: email.trim(), username: username.trim());
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        expenseViewModel.clearLocalState();
+        return;
+      }
+      final body = response.data;
+      if (body is Map<String, dynamic>) {
+        throw ApiError.fromJson(body);
+      }
+      throw ApiError(
+        status: response.statusCode ?? 0,
+        code: 9001,
+        error: 'Unexpected Status',
+        message: 'Registration failed with HTTP ${response.statusCode}.',
+        path: '/api/auth/register',
+      );
     } on DioException catch (e) {
       throw ApiError.fromDioException(e);
     } catch (e) {

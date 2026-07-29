@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:smartspend_mobile/core/network/api_error.dart';
 import 'package:smartspend_mobile/models/transaction.dart';
@@ -17,6 +18,7 @@ class ExpenseViewModel extends ChangeNotifier {
   List<Transaction> _transactions = [];
   bool _isLoading = false;
   String? _errorMessage;
+  ApiError? _lastApiError;
   String? _categoryFilter;
   String? _merchantFilter;
   String _sortField = 'amount';
@@ -28,6 +30,8 @@ class ExpenseViewModel extends ChangeNotifier {
   List<Transaction> get transactions => List.unmodifiable(_transactions);
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  ApiError? get lastApiError => _lastApiError;
+  bool get clarificationRequired => _lastApiError?.details?['clarification'] == true;
   String? get categoryFilter => _categoryFilter;
   String? get merchantFilter => _merchantFilter;
   String get sortField => _sortField;
@@ -100,10 +104,19 @@ class ExpenseViewModel extends ChangeNotifier {
   /// Called by dashboard clear-input button. Only wipes the error banner,
   /// leaving loaded transactions intact.
   void clearInputErrorIfAny() {
-    if (_errorMessage != null) {
+    if (_errorMessage != null || _lastApiError != null) {
       _errorMessage = null;
+      _lastApiError = null;
       notifyListeners();
     }
+  }
+
+  ApiError? _extractApiError(dynamic error) {
+    if (error is ApiError) return error;
+    if (error is DioException && error.error is ApiError) {
+      return error.error as ApiError;
+    }
+    return null;
   }
 
   /// Fetch transactions from the backend.
@@ -161,17 +174,26 @@ class ExpenseViewModel extends ChangeNotifier {
   }
 
   Future<bool> deleteTransaction(int id) async {
-    _isLoading = true;
     _errorMessage = null;
+    final index = _transactions.indexWhere((item) => item.id == id);
+    Transaction? removed;
+    if (index != -1) {
+      removed = _transactions.removeAt(index);
+      notifyListeners();
+    }
+
+    _isLoading = true;
     notifyListeners();
 
     try {
       await _apiServices.deleteTransaction(id);
-      _transactions.removeWhere((item) => item.id == id);
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
+      if (removed != null) {
+        _transactions.insert(index, removed);
+      }
       _errorMessage = userFriendlyMessage(e);
       _isLoading = false;
       notifyListeners();
@@ -212,6 +234,7 @@ class ExpenseViewModel extends ChangeNotifier {
     if (trimmed.isEmpty) return 0;
     _isLoading = true;
     _errorMessage = null;
+    _lastApiError = null;
     notifyListeners();
 
     try {
@@ -225,15 +248,15 @@ class ExpenseViewModel extends ChangeNotifier {
           path: '/api/transactions/process-batch',
         );
       }
-      // Insert newest-first: reversed so the first parsed ends up at index 0
-      // of the newly-added block, matching encounter order.
       for (final tx in newTxs.reversed) {
         _transactions.insert(0, tx);
       }
+      _lastApiError = null;
       _isLoading = false;
       notifyListeners();
       return newTxs.length;
     } catch (e) {
+      _lastApiError = _extractApiError(e);
       _errorMessage = userFriendlyMessage(e);
       _isLoading = false;
       notifyListeners();

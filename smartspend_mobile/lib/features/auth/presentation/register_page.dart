@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/network/api_error.dart';
 import '../../../core/services/auth_service.dart';
 import 'login_page.dart';
 
@@ -44,9 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Registration successful, please login')),
           );
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const LoginPage()),
-          );
+          Navigator.of(context).pushReplacementNamed('/login');
         }
       } catch (e) {
         if (mounted) {
@@ -65,6 +64,9 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   String _getErrorMessage(dynamic error) {
+    if (error is ApiError) {
+      return error.message;
+    }
     if (error is Map<String, dynamic>) {
       final message = error['message'] as String?;
       switch (message) {

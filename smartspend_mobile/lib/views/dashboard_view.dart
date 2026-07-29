@@ -1,454 +1,706 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../core/services/auth_service.dart';
-import '../view_models/expense_view_model.dart';
-import '../features/auth/presentation/login_page.dart';
+import 'package:smartspend_mobile/core/network/api_error.dart';
+import 'package:smartspend_mobile/models/transaction.dart';
+import 'package:smartspend_mobile/services/auth_service.dart';
+import 'package:smartspend_mobile/view_models/expense_view_model.dart';
+import 'package:smartspend_mobile/views/login_page.dart';
 
 class DashboardView extends StatefulWidget {
-  final ExpenseViewModel viewModel;
-
-  const DashboardView({super.key, required this.viewModel});
+  const DashboardView({super.key});
 
   @override
   State<DashboardView> createState() => _DashboardViewState();
 }
 
 class _DashboardViewState extends State<DashboardView> {
-  // Instantiates a tracking engine for your user input text box. 
-  // It lets you extract text or clear out whatever the user typed.
   final TextEditingController _inputController = TextEditingController();
-  final TextEditingController _filterController = TextEditingController();
 
-  // When the widget is first created, this method runs. 
-  // It schedules a task to load transactions from the database right after the first frame is rendered
   @override
   void initState() {
     super.initState();
-    // Initial fetch from backing DB
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.viewModel.loadTransactions();
+      final vm = context.read<ExpenseViewModel>();
+      vm.loadTransactions();
+      vm.initExchange(providerIsRateLimited: true);
     });
   }
 
   @override
   void dispose() {
     _inputController.dispose();
-    _filterController.dispose();
     super.dispose();
   }
 
-  // Apply a category filter and refresh the transaction list.
-  void _applyFilter() async {
-    final filterText = _filterController.text.trim();
-    await widget.viewModel.loadTransactions(category: filterText.isEmpty ? null : filterText);
+  void _handleClearInput() {
+    final vm = context.read<ExpenseViewModel>();
+    vm.clearInputErrorIfAny();
+    _inputController.clear();
   }
 
-  // Clear filter state and reload all transactions.
-  void _clearFilter() async {
-    _filterController.clear();
-    await widget.viewModel.clearFilters();
-  }
-
-  // Change the sort field and toggle order if the same field is selected.
-  void _changeSort(String sortField) async {
-    final currentField = widget.viewModel.sortField;
-    final currentOrder = widget.viewModel.sortOrder;
-    final nextOrder = currentField == sortField && currentOrder == 'desc' ? 'asc' : 'desc';
-    await widget.viewModel.loadTransactions(sortField: sortField, sortOrder: nextOrder);
-  }
-
-  // Ask the user to confirm deletion before removing a transaction.
-  Future<void> _confirmDelete(int? id) async {
-    if (id == null) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete transaction'),
-          content: const Text('Are you sure you want to remove this transaction?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      final success = await widget.viewModel.deleteTransaction(id);
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Transaction removed successfully')),
-        );
-      }
+  Future<void> _handleSubmit() async {
+    final text = _inputController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter an expense description first'),
+          backgroundColor: Color(0xFF0F172A),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
     }
-  }
+    final vm = context.read<ExpenseViewModel>();
+    final created = await vm.processRawExpense(text);
 
-  // A helper function to determine which icon to show based on the transaction category.
-  IconData _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'food':
-      case 'dining':
-        return Icons.fastfood_rounded;
-      case 'transport':
-      case 'travel':
-        return Icons.directions_car_rounded;
-      case 'utilities':
-      case 'bills':
-        return Icons.electric_bolt_rounded;
-      case 'shopping':
-        return Icons.shopping_bag_rounded;
-      case 'entertainment':
-        return Icons.movie_creation_rounded;
-      default:
-        return Icons.account_balance_wallet_rounded;
-    }
-  }
-
-  // This function is called when the user taps the submit button. 
-  // It takes the text from the input box, checks if it's not empty, and then sends it to the view model to be processed. If the processing is successful, it clears the input box and shows a success message.
-  void _handleSubmit() async {
-    final text = _inputController.text;
-    if (text.trim().isEmpty) return;
-
-    // Passes the text over to the AI processing view-model method and pauses execution context until it answers back with a true/false status.
-    final success = await widget.viewModel.processRawExpense(text);
-    if (success) {
+    if (!mounted) return;
+    if (created > 0) {
       _inputController.clear();
-      // An essential safety check! This ensures the user hasn't backed out of this screen while the asynchronous AI call was running.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Expense logged successfully via Gemini Engine'),
-            backgroundColor: Colors.greenAccent,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Recorded $created transaction(s)'),
+          backgroundColor: const Color(0xFF16A34A),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      final inline = vm.errorMessage;
+      final fallback = userFriendlyMessage(inline,
+          fallback: 'AI failed to parse that. Please rephrase and retry.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fallback),
+          backgroundColor: const Color(0xFFDC2626),
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
+  }
+
+  Future<void> _handleLogout({
+    required AuthService auth,
+    required NavigatorState nav,
+  }) async {
+    await auth.logout();
+    if (!mounted) return;
+    nav.pushReplacement(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).primaryColor;
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0D14), // Premium Dark Slate
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.grey.shade50,
         elevation: 0,
-        title: const Text(
-          'SmartSpend AI',
-          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 22),
+        title: Row(
+          children: [
+            Icon(Icons.account_balance_wallet, color: accent),
+            const SizedBox(width: 8),
+            const Text('SmartSpend',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+          ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white70),
-            onPressed: () => widget.viewModel.loadTransactions(),
-          ),
-          TextButton(
-            onPressed: widget.viewModel.isLoading ? null : () => widget.viewModel.toggleCurrency(),
-            child: Text(widget.viewModel.displayCurrency, style: const TextStyle(color: Colors.white70)),
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white70),
-            color: const Color(0xFF161925),
-            onSelected: (value) async {
-              if (value == 'logout') {
-                final authService = Provider.of<AuthService>(context, listen: false);
-                await authService.logout();
-                if (mounted) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const LoginPage()),
+          Consumer<ExpenseViewModel>(
+            builder: (ctx, vm, _) => IconButton(
+              tooltip: 'Switch currency (${vm.displayCurrency})',
+              icon: Text(vm.displayCurrency,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(ctx);
+                await vm.toggleCurrency();
+                if (vm.errorMessage != null) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(vm.errorMessage!),
+                      backgroundColor: const Color(0xFFDC2626),
+                      duration: const Duration(seconds: 4),
+                    ),
                   );
                 }
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'logout',
-                child: Text('Logout'),
-              ),
-            ],
+              },
+            ),
           ),
-        ],
-      ),
-      body: ListenableBuilder(
-        listenable: widget.viewModel,
-        builder: (context, _) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 10),
-                // Premium Banking Expense Display Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2E5BFF), Color(0xFF1E32AA)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color.fromRGBO(46, 91, 255, 0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      )
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          Builder(
+            builder: (ctx) => PopupMenuButton<void>(
+              icon: const Icon(Icons.more_vert),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  onTap: () {
+                    final auth = ctx.read<AuthService>();
+                    final nav = Navigator.of(ctx);
+                    Future.delayed(
+                      Duration.zero,
+                      () => _handleLogout(auth: auth, nav: nav),
+                    );
+                  },
+                  child: const Row(
                     children: [
-                      const Text(
-                        'TOTAL TRACKED EXPENSES',
-                        style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                      ),
-                      const SizedBox(height: 8),
-                      Builder(builder: (context) {
-                        final total = widget.viewModel.totalExpenses;
-                        final isVnd = widget.viewModel.displayCurrency == 'VND';
-                        final rate = widget.viewModel.exchangeRate;
-                        final totalText = isVnd ? '₫${total.toStringAsFixed(0)}' : '\$${total.toStringAsFixed(2)}';
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              totalText,
-                              style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '1 USD = ${rate.toStringAsFixed(isVnd ? 0 : 2)} VND',
-                              style: const TextStyle(color: Colors.white70, fontSize: 12),
-                            ),
-                          ],
-                        );
-                      }),
+                      Icon(Icons.logout, size: 18),
+                      SizedBox(width: 10),
+                      Text('Sign Out'),
                     ],
                   ),
-                ),
-                const SizedBox(height: 24),
-                // AI Copilot Input Interface
-                const Text(
-                  'AI EXPENSE COPILOT',
-                  style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _inputController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'e.g., Bought pizza at Dominos for \$15',
-                          hintStyle: const TextStyle(color: Colors.white30),
-                          fillColor: const Color(0xFF161925),
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: widget.viewModel.isLoading ? null : _handleSubmit,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2E5BFF),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: widget.viewModel.isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Icon(Icons.bolt_rounded, color: Colors.white),
-                      ),
-                    )
-                  ],
-                ),
-                if (widget.viewModel.errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    widget.viewModel.errorMessage!,
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _filterController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Filter by category',
-                          hintStyle: const TextStyle(color: Colors.white30),
-                          fillColor: const Color(0xFF161925),
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      icon: const Icon(Icons.search, color: Colors.white70),
-                      onPressed: widget.viewModel.isLoading ? null : _applyFilter,
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.white70),
-                      onPressed: widget.viewModel.isLoading ? null : _clearFilter,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Sort by: ${widget.viewModel.sortField.toUpperCase()} ${widget.viewModel.sortOrder.toUpperCase()}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.sort, color: Colors.white70),
-                      color: const Color(0xFF161925),
-                      onSelected: _changeSort,
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'amount', child: Text('Amount')),
-                        PopupMenuItem(value: 'category', child: Text('Category')),
-                        PopupMenuItem(value: 'merchant', child: Text('Merchant')),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'TRANSACTION HISTORY',
-                  style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                // Transaction History List View
-                Expanded(
-                  child: widget.viewModel.transactions.isEmpty && !widget.viewModel.isLoading
-                      ? const Center(
-                          child: Text(
-                            'No transactions documented yet.',
-                            style: TextStyle(color: Colors.white30),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: widget.viewModel.transactions.length,
-                          physics: const BouncingScrollPhysics(),
-                          itemBuilder: (context, index) {
-                            final tx = widget.viewModel.transactions[index];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF161925),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF21263C),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      _getCategoryIcon(tx.category),
-                                      color: const Color(0xFF2E5BFF),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          tx.merchant,
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          tx.originalDescription,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(color: Colors.white38, fontSize: 12),
-                                        ),
-                                        if (tx.originalCurrency != 'USD') ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Original: ${tx.originalCurrency}',
-                                            style: const TextStyle(color: Colors.white54, fontSize: 10),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Builder(builder: (context) {
-                                        final isVnd = widget.viewModel.displayCurrency == 'VND';
-                                        final rate = widget.viewModel.exchangeRate;
-                                        final amt = isVnd ? (tx.amount * rate) : tx.amount;
-                                        final amtText = isVnd ? '₫${amt.toStringAsFixed(0)}' : '\$${amt.toStringAsFixed(2)}';
-                                        return Text(
-                                          '-$amtText',
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                                        );
-                                      }),
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF21263C),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          tx.category,
-                                          style: const TextStyle(color: Colors.white70, fontSize: 10),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                                        onPressed: widget.viewModel.isLoading ? null : () => _confirmDelete(tx.id),
-                                      ),
-                                    ],
-                                  )
-                                ],
-                              ),
-                            );
-                          },
-                        ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: accent,
+          onRefresh: () =>
+              context.read<ExpenseViewModel>().loadTransactions(),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SmartInputCard(
+                  controller: _inputController,
+                  onClear: _handleClearInput,
+                  onSubmit: _handleSubmit,
+                ),
+                const SizedBox(height: 16),
+                Consumer<ExpenseViewModel>(
+                  builder: (ctx, vm, _) {
+                    if (vm.errorMessage != null) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _InlineBanner(message: vm.errorMessage!),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                const _SummaryCard(),
+                const SizedBox(height: 16),
+                const _FilterRow(),
+                const SizedBox(height: 8),
+                const _TransactionList(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SmartInputCard extends StatelessWidget {
+  final TextEditingController controller;
+  final VoidCallback onClear;
+  final Future<void> Function() onSubmit;
+
+  const _SmartInputCard({
+    required this.controller,
+    required this.onClear,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).primaryColor;
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: Colors.grey.shade300),
+    );
+    return Consumer<ExpenseViewModel>(
+      builder: (ctx, vm, _) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('AI Smart Bookkeeping',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('Try: coffee 4 USD, buy 6 pizzas 72 USD',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              minLines: 1,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => onSubmit(),
+              decoration: InputDecoration(
+                hintText:
+                    'Describe your spend. Use "and" / commas to add multiple in one shot.',
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                enabledBorder: outline,
+                focusedBorder: outline.copyWith(
+                  borderSide: BorderSide(color: accent, width: 1.6),
+                ),
+                contentPadding:
+                    const EdgeInsets.fromLTRB(16, 14, 56, 14),
+                suffixIcon: IconButton(
+                  tooltip: 'Clear',
+                  icon: const Icon(Icons.close),
+                  onPressed: onClear,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: vm.isLoading ? null : onClear,
+                  icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                  label: const Text('Clear'),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: vm.isLoading ? null : onSubmit,
+                    icon: vm.isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.auto_awesome, size: 18),
+                    label: Text(vm.isLoading ? 'Processing…' : 'Record Expense'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accent,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineBanner extends StatelessWidget {
+  final String message;
+  const _InlineBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline,
+              color: Color(0xFFDC2626), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(color: Color(0xFF991B1B))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).primaryColor;
+    return Consumer<ExpenseViewModel>(
+      builder: (ctx, vm, _) {
+        final symbol = vm.displayCurrency == 'VND' ? '₫' : r'$';
+        final formatted = vm.displayCurrency == 'VND'
+            ? vm.totalExpenses.toStringAsFixed(0)
+            : vm.totalExpenses.toStringAsFixed(2);
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: accent,
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [accent, accent.withValues(alpha: 0.85)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Total Spent',
+                  style: TextStyle(color: Colors.white, fontSize: 13)),
+              const SizedBox(height: 6),
+              Text(
+                '$symbol $formatted',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Rate: 1 USD ≈ ${vm.exchangeRate.toStringAsFixed(0)} VND',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FilterRow extends StatefulWidget {
+  const _FilterRow();
+
+  @override
+  State<_FilterRow> createState() => _FilterRowState();
+}
+
+class _FilterRowState extends State<_FilterRow> {
+  final TextEditingController _merchantCtl = TextEditingController();
+  final TextEditingController _categoryCtl = TextEditingController();
+
+  @override
+  void dispose() {
+    _merchantCtl.dispose();
+    _categoryCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _apply() async {
+    await context.read<ExpenseViewModel>().loadTransactions(
+          category: _categoryCtl.text.trim(),
+          merchant: _merchantCtl.text.trim(),
+        );
+  }
+
+  Future<void> _clear() async {
+    _categoryCtl.clear();
+    _merchantCtl.clear();
+    await context.read<ExpenseViewModel>().clearFilters();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.grey.shade300),
+    );
+    return Consumer<ExpenseViewModel>(
+      builder: (ctx, vm, _) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Filter & Sort',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _categoryCtl,
+                    decoration: InputDecoration(
+                      hintText: 'Category',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      border: outline,
+                      enabledBorder: outline,
+                      focusedBorder: outline,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _merchantCtl,
+                    decoration: InputDecoration(
+                      hintText: 'Merchant',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      border: outline,
+                      enabledBorder: outline,
+                      focusedBorder: outline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: vm.sortField,
+                    items: const [
+                      DropdownMenuItem(value: 'amount', child: Text('Amount')),
+                      DropdownMenuItem(value: 'id', child: Text('Time')),
+                      DropdownMenuItem(
+                          value: 'category', child: Text('Category')),
+                      DropdownMenuItem(
+                          value: 'merchant', child: Text('Merchant')),
+                    ],
+                    onChanged: (v) async {
+                      if (v == null) return;
+                      await context
+                          .read<ExpenseViewModel>()
+                          .loadTransactions(sortField: v);
+                    },
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: vm.isLoading
+                      ? null
+                      : () async {
+                          final order =
+                              vm.sortOrder == 'asc' ? 'desc' : 'asc';
+                          await context
+                              .read<ExpenseViewModel>()
+                              .loadTransactions(sortOrder: order);
+                        },
+                  icon: Icon(vm.sortOrder == 'asc'
+                      ? Icons.arrow_upward
+                      : Icons.arrow_downward),
+                  label:
+                      Text(vm.sortOrder == 'asc' ? 'Ascending' : 'Descending'),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: vm.isLoading ? null : _clear,
+                      child: const Text('Clear'),
+                    ),
+                    FilledButton(
+                      onPressed: vm.isLoading ? null : _apply,
+                      child: const Text('Apply'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionList extends StatelessWidget {
+  const _TransactionList();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ExpenseViewModel>(
+      builder: (ctx, vm, _) {
+        if (vm.isLoading && vm.transactions.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
           );
-        },
+        }
+        if (vm.transactions.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(32),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.receipt_long_outlined,
+                      size: 52, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  Text('No transactions yet. Try the AI box above!',
+                      style: TextStyle(color: Colors.grey.shade500)),
+                ],
+              ),
+            ),
+          );
+        }
+        return Column(
+          children: [
+            for (final tx in vm.transactions) _TxTile(tx: tx),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TxTile extends StatelessWidget {
+  final Transaction tx;
+  const _TxTile({required this.tx});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).primaryColor;
+    final currency = tx.currency;
+    final symbol = currency == 'VND' ? '₫' : r'$';
+    final formatted = currency == 'VND'
+        ? tx.amount.toStringAsFixed(0)
+        : tx.amount.toStringAsFixed(2);
+    return Dismissible(
+      key: Key('tx-${tx.id}-${tx.amount}-${tx.merchant}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.only(right: 20),
+        alignment: Alignment.centerRight,
+        decoration: BoxDecoration(
+          color: const Color(0xFFDC2626),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      confirmDismiss: (_) async {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete this transaction?'),
+            content: const Text(
+                'This cannot be undone. The record will be removed permanently.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Delete')),
+            ],
+          ),
+        );
+        return ok == true;
+      },
+      onDismissed: (_) async {
+        final id = tx.id;
+        if (id == null) return;
+        final ok =
+            await context.read<ExpenseViewModel>().deleteTransaction(id);
+        if (!ok && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context
+                      .read<ExpenseViewModel>()
+                      .errorMessage ??
+                  'Failed to delete transaction'),
+              backgroundColor: const Color(0xFFDC2626),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.receipt, color: accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tx.merchant.isEmpty ? 'Unknown Merchant' : tx.merchant,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      tx.category.isEmpty ? 'Uncategorized' : tx.category,
+                      if (tx.originalCurrency != tx.currency)
+                        'Original currency ${tx.originalCurrency}'
+                    ].join('  ·  '),
+                    style:
+                        TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                  const SizedBox(height: 3),
+                  if (tx.originalDescription.isNotEmpty)
+                    Text(tx.originalDescription,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.grey.shade500, fontSize: 12)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$symbol $formatted',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: tx.amount == 0
+                        ? const Color(0xFF16A34A)
+                        : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(currency,
+                    style: TextStyle(
+                        color: Colors.grey.shade500, fontSize: 11)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

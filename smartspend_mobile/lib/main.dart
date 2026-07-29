@@ -1,70 +1,85 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
-import 'core/network/dio_client.dart';
-import 'core/services/auth_service.dart';
-import 'features/auth/data/auth_api.dart';
-import 'features/auth/data/auth_repository.dart';
-import 'features/auth/presentation/login_page.dart';
-import 'views/dashboard_view.dart';
-import 'view_models/expense_view_model.dart';
+import 'package:smartspend_mobile/services/auth_service.dart';
+import 'package:smartspend_mobile/view_models/expense_view_model.dart';
+import 'package:smartspend_mobile/views/login_page.dart';
+import 'package:smartspend_mobile/views/dashboard_view.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  final storage = const FlutterSecureStorage();
-  final dio = DioClient.createDio(storage);
-  final api = AuthApi(dio: dio);
-  final repository = AuthRepository(api: api, storage: storage);
-  final authService = AuthService(repository: repository);
-
-  await authService.init();
-
-  final ExpenseViewModel expenseViewModel = ExpenseViewModel();
-  expenseViewModel.initExchange(providerIsRateLimited: false);
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => authService),
-        Provider<ExpenseViewModel>(create: (_) => expenseViewModel),
-      ],
-      child: SmartSpendApp(
-        authService: authService,
-        expenseViewModel: expenseViewModel,
-      ),
-    ),
-  );
+  final expenseViewModel = ExpenseViewModel();
+  final authService = AuthService(expenseViewModel: expenseViewModel);
+  runApp(SmartSpendApp(
+    authService: authService,
+    expenseViewModel: expenseViewModel,
+  ));
 }
 
-class SmartSpendApp extends StatelessWidget {
+class SmartSpendApp extends StatefulWidget {
   final AuthService authService;
   final ExpenseViewModel expenseViewModel;
 
-  const SmartSpendApp({super.key, required this.authService, required this.expenseViewModel});
+  const SmartSpendApp({
+    super.key,
+    required this.authService,
+    required this.expenseViewModel,
+  });
+
+  @override
+  State<SmartSpendApp> createState() => _SmartSpendAppState();
+}
+
+class _SmartSpendAppState extends State<SmartSpendApp> {
+  late Future<bool> _authCheck;
+
+  @override
+  void initState() {
+    super.initState();
+    _authCheck = widget.authService.isAuthenticated();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SmartSpend AI',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        fontFamily: 'Roboto',
-      ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => Consumer<AuthService>(
-          builder: (context, authService, _) {
-            return authService.isAuthenticated
-                ? DashboardView(viewModel: expenseViewModel)
-                : const LoginPage();
+    return MultiProvider(
+      providers: [
+        Provider<AuthService>.value(value: widget.authService),
+        ChangeNotifierProvider<ExpenseViewModel>.value(
+          value: widget.expenseViewModel,
+        ),
+      ],
+      child: MaterialApp(
+        title: 'SmartSpend',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          primaryColor: const Color(0xFF16A34A),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF16A34A),
+            primary: const Color(0xFF16A34A),
+            surface: Colors.white,
+          ),
+          useMaterial3: true,
+          fontFamily: 'Inter',
+        ),
+        home: FutureBuilder<bool>(
+          future: _authCheck,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done) {
+              final loggedIn = snapshot.data == true;
+              return loggedIn ? const DashboardView() : LoginPage();
+            }
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
           },
         ),
-        '/dashboard': (context) => DashboardView(viewModel: expenseViewModel),
-        '/login': (context) => const LoginPage(),
-      },
+        routes: {
+          '/login': (context) => LoginPage(),
+          '/dashboard': (context) => const DashboardView(),
+          '/register': (context) => const RegisterPage(),
+        },
+      ),
     );
   }
 }

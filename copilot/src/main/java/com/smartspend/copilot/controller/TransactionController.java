@@ -19,12 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("api/transactions")
@@ -37,32 +35,50 @@ public class TransactionController {
     private final TransactionMapper transactionMapper;
 
     @Operation(
-            summary = "Process a transaction",
-            description = "Convert raw transaction text into structured transaction data"
+            summary = "Process a transaction (LEGACY single-item)",
+            description = "Backwards-compatible endpoint: converts raw text into exactly ONE structured transaction. For multi-action / batch processing use /process-batch instead."
     )
-    @ApiResponses({ // 告诉 Swagger：这个 endpoint 可能返回哪些 response
+    @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Transaction processed successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid request body or validation failed",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))), // content/schema： 错误 JSON 长什么样
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "500", description = "AI parsing failed",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))), // content/schema： 错误 JSON 长什么样
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
     })
     @PostMapping("/process")
     public ResponseEntity<TransactionResponse> processExpense(@Valid @RequestBody ProcessTransactionRequest request){
         String description = request.getDescription();
-
         Transaction transaction = transactionService.processTransaction(description);
-
         TransactionResponse response = transactionMapper.toResponse(transaction);
-
-
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Process a transaction (BATCH / multi-action aware)",
+            description = "Parses raw user text that may contain AND / OR / comma / newline-separated / multi-amount descriptions into 1..N transactions. ALWAYS returns a JSON array (length >= 1 on success)."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Transactions processed successfully (array length >= 1)"),
+            @ApiResponse(responseCode = "400", description = "Invalid request body, blank description, unparseable text, or unsupported currency",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "500", description = "AI infrastructure parsing failure",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+    })
+    @PostMapping("/process-batch")
+    public ResponseEntity<List<TransactionResponse>> processExpenseBatch(
+            @Valid @RequestBody ProcessTransactionRequest request
+    ) {
+        String description = request.getDescription();
+        List<Transaction> transactions = transactionService.processTransactions(description);
+        List<TransactionResponse> responses = transactions.stream()
+                .map(transactionMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(responses);
+    }
 
     @Operation(
             summary = "Delete transaction",
-            description = "Delete a transaction by id"
+            description = "Delete a transaction by id (must belong to current authenticated user)"
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Transaction deleted successfully"),
@@ -74,15 +90,14 @@ public class TransactionController {
             transactionService.deleteTransaction(id);
             log.info("you have deleted transaction with id {}", id);
             return ResponseEntity.noContent().build();
-
     }
 
     @Operation(
-            summary = "Get paginated transactions",
-            description = "Retrieve transactions with optional filtering, sorting, and pagination"
+            summary = "Get paginated transactions (USER-SCOPED)",
+            description = "Retrieve ONLY the currently authenticated user's transactions, with optional category/merchant filtering, sorting, and pagination."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Transactions retrieve successfully")
+            @ApiResponse(responseCode = "200", description = "Transactions retrieved successfully inside PaginatedResponse wrapper")
     })
     @GetMapping
     public ResponseEntity<PaginatedResponse<TransactionResponse>> getAllTransactions(
@@ -93,12 +108,14 @@ public class TransactionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ){
-        Page<Transaction> transactionPage = transactionService.getTransactions(category, merchant, sort, order, page, size);
+        Page<Transaction> transactionPage = transactionService.getTransactions(
+                category, merchant, sort, order, page, size
+        );
 
-        // stream() :把 List 变成：“可操作的数据流” 类似：transaction1, transaction2, transaction3进入 pipeline
-        // transactionMapper::toResponse: method reference = transaction -> transactionMapper.toResponse(transaction)
-        // 把 transactions 列表里的每一个原始交易数据，排队通过转换器（Mapper）变成前端需要的格式，最后打包成一个新的列表 responses
-        List<TransactionResponse> responses = transactionPage.getContent().stream().map(transactionMapper::toResponse).toList();
+        List<TransactionResponse> responses = transactionPage.getContent()
+                .stream()
+                .map(transactionMapper::toResponse)
+                .toList();
 
         PaginatedResponse<TransactionResponse> response =
                 PaginatedResponse.<TransactionResponse>builder()
@@ -115,11 +132,11 @@ public class TransactionController {
 
     @Operation(
             summary = "Get exchange rate",
-            description = "Retrieve currency exchange rate between 2 currencies"
+            description = "Retrieve currency exchange rate — only USD↔VND pairs are supported."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Exchange rate retrieved successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid currency code",
+            @ApiResponse(responseCode = "400", description = "Invalid or unsupported currency pair",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
     })
     @GetMapping("/rate")
@@ -138,4 +155,3 @@ public class TransactionController {
             );
     }
 }
-

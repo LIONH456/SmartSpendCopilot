@@ -32,9 +32,13 @@ class DioClient {
   ///     works without importing dart:io.
   static String get baseUrl {
     if (kIsWeb) return 'http://localhost:8080';
+
+    const isRealDevice = false;
+    const computerIp = 'http://192.168.1.97';
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        return 'http://10.0.2.2:8080';
+        // return 'http://10.0.2.2:8080';
+        return isRealDevice ? '$computerIp:8080' : 'http://10.0.2.2:8080';
       case TargetPlatform.iOS:
       case TargetPlatform.macOS:
       case TargetPlatform.linux:

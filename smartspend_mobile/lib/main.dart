@@ -4,6 +4,7 @@ import 'package:smartspend_mobile/services/auth_service.dart';
 import 'package:smartspend_mobile/view_models/expense_view_model.dart';
 import 'package:smartspend_mobile/views/login_page.dart';
 import 'package:smartspend_mobile/views/dashboard_view.dart';
+import 'package:smartspend_mobile/views/register_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

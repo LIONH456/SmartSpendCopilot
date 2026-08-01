@@ -31,9 +31,9 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isSubmitting = true);
     try {
       await context.read<AuthService>().login(
-            _loginController.text.trim(),
-            _passwordController.text,
-          );
+        _loginController.text.trim(),
+        _passwordController.text,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -44,8 +44,10 @@ class _LoginPageState extends State<LoginPage> {
       );
       await Navigator.of(context).pushReplacementNamed('/dashboard');
     } catch (e) {
-      final message = userFriendlyMessage(e,
-          fallback: 'Sign in failed. Please try again.');
+      final message = userFriendlyMessage(
+        e,
+        fallback: 'Sign in failed. Please try again.',
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -67,79 +69,91 @@ class _LoginPageState extends State<LoginPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(Icons.account_balance_wallet,
-                      size: 56, color: accent),
+                  Icon(Icons.account_balance_wallet, size: 56, color: accent),
                   const SizedBox(height: 16),
                   const Text(
                     'SmartSpend',
-                    style:
-                        TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 8),
-                  Text('Welcome back — sign in to continue',
-                      style: TextStyle(
-                          color: Colors.grey.shade600, fontSize: 14)),
+                  Text(
+                    'Welcome back — sign in to continue',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                  ),
                   const SizedBox(height: 40),
-                  TextFormField(
-                    key: const ValueKey('loginField'),
-                    controller: _loginController,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    decoration: InputDecoration(
-                      labelText: 'Email or Username',
-                      hintText: 'you@example.com or your_username',
-                      prefixIcon: const Icon(Icons.alternate_email_outlined),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Colors.white,
+                  Semantics(
+                    identifier: 'loginField',
+                    child: TextFormField(
+                      key: const ValueKey('loginField'),
+                      controller: _loginController,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      decoration: InputDecoration(
+                        labelText: 'Email or Username',
+                        hintText: 'you@example.com or your_username',
+                        prefixIcon: const Icon(Icons.alternate_email_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      validator: (v) {
+                        final value = (v ?? '').trim();
+                        if (value.isEmpty) {
+                          return 'Please enter your email or username';
+                        }
+                        if (value.length < 2) {
+                          return 'Must be at least 2 characters';
+                        }
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => _handleSubmit(),
                     ),
-                    validator: (v) {
-                      final value = (v ?? '').trim();
-                      if (value.isEmpty) {
-                        return 'Please enter your email or username';
-                      }
-                      if (value.length < 2) {
-                        return 'Must be at least 2 characters';
-                      }
-                      return null;
-                    },
-                    onFieldSubmitted: (_) => _handleSubmit(),
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    key: const ValueKey('passwordField'),
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  Semantics(
+                    identifier: 'passwordField',
+                    child: TextFormField(
+                      key: const ValueKey('passwordField'),
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
                       ),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Colors.white,
+                      validator: (v) {
+                        if ((v ?? '').isEmpty) {
+                          return 'Please enter your password';
+                        }
+                        if ((v ?? '').length < 6) {
+                          return 'Password must be at least 6 characters';
+                        }
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => _handleSubmit(),
                     ),
-                    validator: (v) {
-                      if ((v ?? '').isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      if ((v ?? '').length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
-                    onFieldSubmitted: (_) => _handleSubmit(),
                   ),
                   const SizedBox(height: 8),
                   Align(
@@ -150,7 +164,9 @@ class _LoginPageState extends State<LoginPage> {
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('Password recovery'),
-                            content: const Text('Password recovery options are coming soon. Please contact support if you need help accessing your account.'),
+                            content: const Text(
+                              'Password recovery options are coming soon. Please contact support if you need help accessing your account.',
+                            ),
                             actions: [
                               FilledButton(
                                 onPressed: () => Navigator.of(ctx).pop(),
@@ -172,30 +188,37 @@ class _LoginPageState extends State<LoginPage> {
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: _isSubmitting
                           ? const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
-                          : const Text('Sign In',
-                              style: TextStyle(fontSize: 16)),
+                          : const Text(
+                              'Sign In',
+                              style: TextStyle(fontSize: 16),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text("Don't have an account?",
-                          style: TextStyle(color: Colors.grey.shade600)),
+                      Text(
+                        "Don't have an account?",
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
                       TextButton(
                         onPressed: _isSubmitting
                             ? null
                             : () =>
-                                Navigator.of(context).pushNamed('/register'),
+                                  Navigator.of(context).pushNamed('/register'),
                         child: const Text('Sign Up'),
                       ),
                     ],
@@ -209,4 +232,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
